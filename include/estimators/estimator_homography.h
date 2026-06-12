@@ -47,6 +47,7 @@
 #include "../utils/types.h"
 
 #include "solver_homography_four_point.h"
+#include "numerical_optimizer/bundle.h"
 
 namespace superansac
 {
@@ -55,11 +56,27 @@ namespace superansac
 		// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
 		class HomographyEstimator : public Estimator
 		{
+		protected:
+			// Optional nonlinear (LM) refinement of the non-minimal homography
+			// estimate, minimizing the robust reprojection error -- the homography
+			// analog of the bundle adjustment F/E already run. The DLT solver only
+			// gives the algebraic (linear) optimum.
+			bool useBundleRefinement = false;
+			double bundleLossScale = 1.0; // Robust loss scale (= inlier threshold, in pixels)
+			size_t bundleMaxIterations = 100; // LM iterations for the refinement
+
 		public:
 			HomographyEstimator() {}
 			~HomographyEstimator() {}
-            
-			// A flag deciding if the points can be weighted when the non-minimal fitting is applied 
+
+			void setBundleRefinement(const bool kEnabled_, const double kLossScale_, const size_t kMaxIterations_ = 100)
+			{
+				useBundleRefinement = kEnabled_;
+				bundleLossScale = kLossScale_;
+				bundleMaxIterations = kMaxIterations_;
+			}
+
+			// A flag deciding if the points can be weighted when the non-minimal fitting is applied
 			bool isWeightingApplicable() const override
             {
                 return true;
@@ -105,7 +122,10 @@ namespace superansac
 				if (kSampleNumber_ < nonMinimalSampleSize())
 					return false;
 
-				DataMatrix normalizedPoints(kSampleNumber_, kData_.cols()); // The normalized point coordinates
+				// Thread-local scratch (used in the local-optimization inner loops);
+				// fully overwritten by normalizePoints below.
+				static thread_local DataMatrix normalizedPoints;
+				normalizedPoints.resize(kSampleNumber_, kData_.cols()); // The normalized point coordinates
 				Eigen::Matrix3d normalizingTransformSource, // The normalizing transformations in the source image
 					normalizingTransformDestination; // The normalizing transformations in the destination image
 
@@ -131,23 +151,62 @@ namespace superansac
 				const Eigen::Matrix3d kNormalizingTransformDestinationInverse = normalizingTransformDestination.inverse();
 				for (auto &model : *models_)
 					model.setData(kNormalizingTransformDestinationInverse * model.getData() * normalizingTransformSource);
+
+				// Nonlinear refinement: polish the (denormalized) DLT homography by
+				// minimizing the robust reprojection error in pixel space. The DLT
+				// only minimizes algebraic error; this is the homography analog of
+				// the bundle adjustment run for F/E.
+				if (useBundleRefinement)
+				{
+					static thread_local std::vector<Eigen::Vector2d> x1, x2;
+					static thread_local std::vector<double> weights;
+					x1.resize(kSampleNumber_);
+					x2.resize(kSampleNumber_);
+					weights.clear();
+					const bool kUseWeights = kWeights_ != nullptr;
+					if (kUseWeights)
+						weights.resize(kSampleNumber_);
+					for (size_t i = 0; i < kSampleNumber_; ++i)
+					{
+						const size_t idx = kSample_ == nullptr ? i : kSample_[i];
+						x1[i] = Eigen::Vector2d(kData_(idx, 0), kData_(idx, 1));
+						x2[i] = Eigen::Vector2d(kData_(idx, 2), kData_(idx, 3));
+						if (kUseWeights)
+							weights[i] = kWeights_[i];
+					}
+
+					// Robust Cauchy loss at half the inlier threshold, matching the
+					// F/E bundle-adjustment configuration.
+					poselib::BundleOptions bundleOptions;
+					bundleOptions.loss_type = poselib::BundleOptions::LossType::CAUCHY;
+					bundleOptions.loss_scale = 0.5 * bundleLossScale;
+					bundleOptions.max_iterations = bundleMaxIterations;
+
+					for (auto &model : *models_)
+					{
+						Eigen::Matrix3d homography = model.getData().block<3, 3>(0, 0);
+						poselib::refine_homography(x1, x2, &homography, bundleOptions, weights);
+						if (homography.allFinite())
+							model.getMutableData() = homography;
+					}
+				}
 				return true;
 			}
 
-			FORCE_INLINE double squaredResidual(const DataMatrix& point_,
+			FORCE_INLINE double squaredResidual(const double* point_,
 				const models::Model& model_) const override
 			{
 				return squaredResidual(point_, model_.getData());
 			}
 
-			FORCE_INLINE double squaredResidual(const DataMatrix& point_,
-				const DataMatrix& descriptor_) const
+			FORCE_INLINE double squaredResidual(const double* point_,
+				const ModelMatrix& descriptor_) const
 			{
 				// Use const references to avoid copying
-				const double &x1 = point_(0),
-							&y1 = point_(1),
-							&x2 = point_(2),
-							&y2 = point_(3);
+				const double &x1 = point_[0],
+							&y1 = point_[1],
+							&x2 = point_[2],
+							&y2 = point_[3];
 
 				// Cache repeated calculations
 				const double &descriptor00 = descriptor_(0, 0),
@@ -188,16 +247,33 @@ namespace superansac
 				return d1 * d1 + d2 * d2;*/
 			}
 
-			FORCE_INLINE double residual(const DataMatrix& point_,
+			FORCE_INLINE double residual(const double* point_,
 				const models::Model& model_) const override
 			{
 				return residual(point_, model_.getData());
 			}
 
-			FORCE_INLINE double residual(const DataMatrix& point_,
-				const DataMatrix& descriptor_) const
+			FORCE_INLINE double residual(const double* point_,
+				const ModelMatrix& descriptor_) const
 			{
 				return sqrt(squaredResidual(point_, descriptor_));
+			}
+
+			// Batched squared residuals: the descriptor is loaded once and the
+			// per-point arithmetic (identical to squaredResidual) runs in a tight,
+			// non-virtual loop over the contiguous row-major rows.
+			void squaredResiduals(
+				const DataMatrix& kData_,
+				const models::Model& kModel_,
+				const size_t kStartRow_,
+				const size_t kCount_,
+				double* kOut_) const override
+			{
+				const ModelMatrix& kDescriptor = kModel_.getData();
+				const size_t kCols = kData_.cols();
+				const double* row = kData_.data() + kStartRow_ * kCols;
+				for (size_t i = 0; i < kCount_; ++i, row += kCols)
+					kOut_[i] = squaredResidual(row, kDescriptor);
 			}
 
 			FORCE_INLINE bool normalizePoints(
