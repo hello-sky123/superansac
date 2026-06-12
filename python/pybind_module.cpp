@@ -180,6 +180,12 @@ PYBIND11_MODULE(pysuperansac, m) {
         .def_readwrite("neighborhood_grid_density", &superansac::NeighborhoodSettings::neighborhoodGridDensity)
         .def_readwrite("nearest_neighbor_number", &superansac::NeighborhoodSettings::nearestNeighborNumber);
 
+    py::class_<superansac::DegensacSettings>(m, "DegensacSettings")
+        .def(py::init<>())
+        .def_readwrite("enabled", &superansac::DegensacSettings::enabled)
+        .def_readwrite("homography_threshold", &superansac::DegensacSettings::homographyThreshold)
+        .def_readwrite("inner_ransac_iterations", &superansac::DegensacSettings::innerRansacIterations);
+
     // Expose the RANSAC settings to Python
     py::class_<superansac::RANSACSettings>(m, "RANSACSettings")
         .def(py::init<>())
@@ -199,7 +205,19 @@ PYBIND11_MODULE(pysuperansac, m) {
         .def_readwrite("final_optimization_settings", &superansac::RANSACSettings::finalOptimizationSettings)
         .def_readwrite("use_sprt", &superansac::RANSACSettings::useSprt)
         .def_readwrite("local_opt_k", &superansac::RANSACSettings::topKForLocalOptimization)
-        .def_readwrite("neighborhood_settings", &superansac::RANSACSettings::neighborhoodSettings);
+        .def_readwrite("neighborhood_settings", &superansac::RANSACSettings::neighborhoodSettings)
+        .def_readwrite("degensac_settings", &superansac::RANSACSettings::degensacSettings)
+        .def_readwrite("fundamental_orientation_check", &superansac::RANSACSettings::fundamentalOrientationCheck)
+        .def_readwrite("fundamental_symmetric_validation", &superansac::RANSACSettings::fundamentalSymmetricValidation)
+        .def_readwrite("final_refinement_rounds", &superansac::RANSACSettings::finalRefinementRounds)
+        .def_readwrite("final_refinement_schedule", &superansac::RANSACSettings::finalRefinementSchedule)
+        .def_readwrite("final_refinement_schedule_start", &superansac::RANSACSettings::finalRefinementScheduleStart)
+        .def_readwrite("final_refinement_schedule_end", &superansac::RANSACSettings::finalRefinementScheduleEnd)
+        .def_readwrite("final_polish_top_k", &superansac::RANSACSettings::finalPolishTopK)
+        .def_readwrite("final_refinement_weighted", &superansac::RANSACSettings::finalRefinementWeighted)
+        .def_readwrite("essential_cheirality_point_number", &superansac::RANSACSettings::essentialCheiralityPointNumber)
+        .def_readwrite("homography_bundle_refinement", &superansac::RANSACSettings::homographyBundleRefinement)
+        .def_readwrite("homography_bundle_max_iterations", &superansac::RANSACSettings::homographyBundleMaxIterations);
 
     // Expose the function to Python
     m.def(

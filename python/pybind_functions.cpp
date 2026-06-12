@@ -136,12 +136,21 @@ void initializeLocalOptimizer(
     {
         // Set the neighborhood graph to the local optimizer
         auto lsqLocalOptimizer = dynamic_cast<superansac::local_optimization::LeastSquaresOptimizer *>(localOptimizer_.get());
-        if (kFinalOptimization_ || 
-            kModelType_ == superansac::models::Types::Homography || 
-            kModelType_ == superansac::models::Types::RigidTransformation || 
+        if (kFinalOptimization_ ||
+            kModelType_ == superansac::models::Types::Homography ||
+            kModelType_ == superansac::models::Types::RigidTransformation ||
             kModelType_ == superansac::models::Types::EssentialMatrix ||
             kModelType_ == superansac::models::Types::FundamentalMatrix)
             lsqLocalOptimizer->setUseInliers(true);
+        // Score-gated re-collect-and-refit rounds for the final polish
+        if (kFinalOptimization_)
+        {
+            lsqLocalOptimizer->setExtraRefinementRounds(kSettings_.finalRefinementRounds);
+            lsqLocalOptimizer->setSigmaSchedule(kSettings_.finalRefinementSchedule);
+            lsqLocalOptimizer->setSigmaScheduleRange(
+                kSettings_.finalRefinementScheduleStart, kSettings_.finalRefinementScheduleEnd);
+            lsqLocalOptimizer->setWeightedFit(kSettings_.finalRefinementWeighted);
+        }
     } else if (kLocalOptimizationType_ == superansac::local_optimization::LocalOptimizationType::NestedRANSAC)
     {
         // Set the neighborhood graph to the local optimizer
@@ -602,9 +611,28 @@ std::tuple<Eigen::Matrix3d, std::vector<size_t>, double, size_t> estimateFundame
         normalizingTransformSource,
         normalizingTransformDestination);   
         
-    const double kScale = 
+    const double kScale =
         0.5 * (normalizingTransformSource(0, 0) + normalizingTransformDestination(0, 0));
     settings_.inlierThreshold *= kScale;
+    // The DEGENSAC homography threshold lives in pixel units; convert it to the
+    // normalized units the core operates in, same convention as inlierThreshold.
+    settings_.degensacSettings.homographyThreshold *= kScale;
+
+    // Fundamental-matrix final-refinement defaults: a sigma-consensus polish
+    // (shrinking-threshold re-collect-and-refit, applied to every top-K
+    // locally optimized candidate). It is score-gated, runs once per pair, and
+    // is essentially runtime-free, but measurably improves F accuracy. Applied
+    // only when the caller has not customized the final-refinement settings, so
+    // it never overrides an explicit choice. It is scoped to F here (it slightly
+    // regresses homography), so E/H/rigid/abspose behavior is unchanged.
+    if (settings_.finalRefinementRounds == 0 && !settings_.finalRefinementSchedule)
+    {
+        settings_.finalRefinementRounds = 8;
+        settings_.finalRefinementSchedule = true;
+        settings_.finalPolishTopK = true;
+        settings_.finalRefinementScheduleStart = 6.0;
+        settings_.finalRefinementScheduleEnd = 0.5;
+    }
 
     // Get the values from the settings
     const superansac::scoring::ScoringType kScoring = settings_.scoring;
@@ -615,8 +643,9 @@ std::tuple<Eigen::Matrix3d, std::vector<size_t>, double, size_t> estimateFundame
     const superansac::termination::TerminationType kTerminationCriterion = settings_.terminationCriterion;
 
     // Create the solvers and the estimator
-    std::unique_ptr<superansac::estimator::FundamentalMatrixEstimator> estimator = 
+    std::unique_ptr<superansac::estimator::FundamentalMatrixEstimator> estimator =
         std::unique_ptr<superansac::estimator::FundamentalMatrixEstimator>(new superansac::estimator::FundamentalMatrixEstimator());
+    estimator->setOrientationCheck(settings_.fundamentalOrientationCheck);
     estimator->setMinimalSolver(new superansac::estimator::solver::FundamentalMatrixSevenPointSolver());
     estimator->setNonMinimalSolver(new superansac::estimator::solver::FundamentalMatrixBundleAdjustmentSolver());
     superansac::estimator::solver::FundamentalMatrixBundleAdjustmentSolver * nonminimalSolver = 
@@ -865,9 +894,23 @@ std::tuple<Eigen::Matrix3d, std::vector<size_t>, double, size_t> estimateEssenti
         kIntrinsicsDestination_,
         normalizedCorrespondences);
         
-    const double kScale = 
+    const double kScale =
         0.25 * (kIntrinsicsSource_(0, 0) + kIntrinsicsSource_(1, 1) + kIntrinsicsDestination_(0, 0) + kIntrinsicsDestination_(1, 1));
     settings_.inlierThreshold /= kScale;
+
+    // Essential-matrix final-refinement defaults: the same sigma-consensus polish
+    // shipped for F (shrinking-threshold re-collect-and-refit on every top-K
+    // candidate, score-gated, once per pair -> runtime-free). Applied only when
+    // the caller has not customized the final-refinement settings, so it never
+    // overrides an explicit choice.
+    if (settings_.finalRefinementRounds == 0 && !settings_.finalRefinementSchedule)
+    {
+        settings_.finalRefinementRounds = 8;
+        settings_.finalRefinementSchedule = true;
+        settings_.finalPolishTopK = true;
+        settings_.finalRefinementScheduleStart = 6.0;
+        settings_.finalRefinementScheduleEnd = 0.5;
+    }
 
     // Get the values from the settings
     const superansac::scoring::ScoringType kScoring = settings_.scoring;
@@ -878,7 +921,7 @@ std::tuple<Eigen::Matrix3d, std::vector<size_t>, double, size_t> estimateEssenti
     const superansac::termination::TerminationType kTerminationCriterion = settings_.terminationCriterion;
 
     // Create the solvers and the estimator
-    std::unique_ptr<superansac::estimator::EssentialMatrixEstimator> estimator = 
+    std::unique_ptr<superansac::estimator::EssentialMatrixEstimator> estimator =
         std::unique_ptr<superansac::estimator::EssentialMatrixEstimator>(new superansac::estimator::EssentialMatrixEstimator());
     estimator->setMinimalSolver(new superansac::estimator::solver::EssentialMatrixFivePointNisterSolver());
     estimator->setNonMinimalSolver(new superansac::estimator::solver::EssentialMatrixBundleAdjustmentSolver());
@@ -886,6 +929,7 @@ std::tuple<Eigen::Matrix3d, std::vector<size_t>, double, size_t> estimateEssenti
         dynamic_cast<superansac::estimator::solver::EssentialMatrixBundleAdjustmentSolver *>(estimator->getMutableNonMinimalSolver());
     if (kPointProbabilities_.size() > 0)
         nonminimalSolver->setWeights(&kPointProbabilities_);
+    nonminimalSolver->setCheiralityPointNumber(settings_.essentialCheiralityPointNumber);
     auto &solverOptions = nonminimalSolver->getMutableOptions();
     solverOptions.loss_type = poselib::BundleOptions::LossType::TRUNCATED;
     solverOptions.loss_scale = settings_.inlierThreshold;
@@ -1084,6 +1128,9 @@ std::tuple<Eigen::Matrix3d, std::vector<size_t>, double, size_t> estimateHomogra
         std::unique_ptr<superansac::estimator::HomographyEstimator>(new superansac::estimator::HomographyEstimator());
     estimator->setMinimalSolver(new superansac::estimator::solver::HomographyFourPointSolver());
     estimator->setNonMinimalSolver(new superansac::estimator::solver::HomographyFourPointSolver());
+    // Nonlinear reprojection-error refinement of the non-minimal homography fit
+    // (the DLT only gives the algebraic optimum). loss_scale = inlier threshold (px).
+    estimator->setBundleRefinement(settings_.homographyBundleRefinement, settings_.inlierThreshold, settings_.homographyBundleMaxIterations);
 
     // Create the sampler
     std::unique_ptr<superansac::samplers::AbstractSampler> sampler = 
