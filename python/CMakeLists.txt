@@ -2,7 +2,9 @@
 find_package(pybind11 REQUIRED)
 
 # Python extension module
-pybind11_add_module(pysuperansac MODULE
+# NO_EXTRAS: keep symbols (pybind11 would strip in Release); LTO still applies
+# via the global CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE setting.
+pybind11_add_module(pysuperansac MODULE NO_EXTRAS
   pybind_module.cpp
   pybind_functions.cpp
 )
