@@ -99,6 +99,11 @@ namespace superansac
 					pointWeights = pointWeights_;
 				}
 
+				void setCheiralityPointNumber(const size_t kPointNumber_)
+				{
+					pointNumberForCheiralityCheck = kPointNumber_;
+				}
+
 				// Estimate the model parameters from the given point sample
 				// using weighted fitting if possible.
 				FORCE_INLINE bool estimateModel(
@@ -120,11 +125,25 @@ namespace superansac
 				if (kSampleNumber_ < sampleSize())
 					return false;
 
-				// The point correspondences
-				std::vector<Eigen::Vector2d> x1(kSampleNumber_); 
-				std::vector<Eigen::Vector2d> x2(kSampleNumber_); 
-				std::vector<double> weights;
-				if (pointWeights != nullptr)
+				// The point correspondences. Thread-local scratch buffers: this solver
+				// runs in the inner loops of the local optimizers, so reusing the
+				// buffers avoids per-call heap allocations. The contents are fully
+				// overwritten below.
+				static thread_local std::vector<Eigen::Vector2d> x1;
+				static thread_local std::vector<Eigen::Vector2d> x2;
+				static thread_local std::vector<double> weights;
+				x1.resize(kSampleNumber_);
+				x2.resize(kSampleNumber_);
+				weights.clear();
+				// Per-constraint confidences fed into the relative-pose LM bundle
+				// adjustment. The kWeights_ array passed by the local optimizers
+				// (e.g. the MAGSAC marginalized weights aligned with the sample
+				// order) takes precedence; the member pointWeights is the legacy
+				// fallback. Previously kWeights_ was silently ignored, so the LM
+				// always ran with uniform per-point weights.
+				const bool useArgWeights = kWeights_ != nullptr;
+				const bool useMemberWeights = !useArgWeights && pointWeights != nullptr;
+				if (useArgWeights || useMemberWeights)
 					weights.resize(kSampleNumber_);
 
 				// Filling the point correspondences if the sample is not provided
@@ -135,7 +154,9 @@ namespace superansac
 					{
 						x1[pointIdx] = Eigen::Vector2d(kData_(pointIdx, 0), kData_(pointIdx, 1));
 						x2[pointIdx] = Eigen::Vector2d(kData_(pointIdx, 2), kData_(pointIdx, 3));
-						if (pointWeights != nullptr)
+						if (useArgWeights)
+							weights[pointIdx] = kWeights_[pointIdx];
+						else if (useMemberWeights)
 							weights[pointIdx] = (*pointWeights)[pointIdx];
 					}
 				} else // Filling the point correspondences if the sample is provided
@@ -145,7 +166,9 @@ namespace superansac
 						const size_t &idx = kSample_[pointIdx];
 						x1[pointIdx] = Eigen::Vector2d(kData_(idx, 0), kData_(idx, 1));
 						x2[pointIdx] = Eigen::Vector2d(kData_(idx, 2), kData_(idx, 3));
-						if (pointWeights != nullptr)
+						if (useArgWeights)
+							weights[pointIdx] = kWeights_[pointIdx];
+						else if (useMemberWeights)
 							weights[pointIdx] = (*pointWeights)[idx];
 					}
 				}
@@ -173,9 +196,19 @@ namespace superansac
 					tmpOptions.loss_type = poselib::BundleOptions::LossType::CAUCHY;
 				}
 				
-				// Select the first point in the sample to be used for the cheirality check
-				const size_t kPointNumberForCheck = std::min(pointNumberForCheiralityCheck, kSampleNumber_);
-				std::vector<Eigen::Vector3d> x1CheiralityCheck(kPointNumberForCheck), x2CheiralityCheck(kPointNumberForCheck);
+				// Build the (normalized) bearing vectors used to disambiguate the
+				// four essential-matrix decompositions by cheirality. The sample is
+				// score-sorted (PROSAC), so the first points are the highest
+				// confidence. Using several points and a robust majority VOTE --
+				// instead of the previous single-point all-or-nothing filter --
+				// reliably selects the correct pose without being defeated by one
+				// bad correspondence (the old all-AND filter degraded as the point
+				// count grew, since a single outlier rejected the true pose).
+				const size_t kPointNumberForCheck = std::max<size_t>(1,
+					std::min(pointNumberForCheiralityCheck, kSampleNumber_));
+				static thread_local std::vector<Eigen::Vector3d> x1CheiralityCheck, x2CheiralityCheck;
+				x1CheiralityCheck.resize(kPointNumberForCheck);
+				x2CheiralityCheck.resize(kPointNumberForCheck);
 				for (size_t idx = 0; idx < kPointNumberForCheck; idx++)
 				{
 					const size_t& pointIdx = kSample_ == nullptr ? idx : kSample_[idx];
@@ -185,43 +218,74 @@ namespace superansac
 					x2CheiralityCheck[idx].normalize();
 				}
 
-				// The pose with the lowest cost
+				// Empty filter so motion_from_essential returns all four candidate poses.
+				static const std::vector<Eigen::Vector3d> kEmptyCheck;
+
+				// The selected pose: prefer more cheirality votes, then lower BA cost.
+				size_t bestVotes = 0;
 				double bestCost = std::numeric_limits<double>::max();
 				poselib::CameraPose bestPose;
+				bool haveBestPose = false;
 
 				// Iterating through the potential models.
 				for (auto& model : models_)
 				{
-					// Decompose the essential matrix to camera poses
+					// Decompose the essential matrix to all four candidate poses
 					poselib::CameraPoseVector poses;
-					
 					poselib::motion_from_essential(
 						model.getData().block<3, 3>(0, 0), // The essential matrix
-						x1CheiralityCheck, x2CheiralityCheck, // The point correspondence used for the cheirality check
+						kEmptyCheck, kEmptyCheck, // No internal filtering; vote below
 						&poses); // The decomposed poses
 
-					// Iterating through the potential poses and optimizing each
+					// Robust cheirality vote: count the points in front of both
+					// cameras for each candidate pose.
+					size_t maxVotes = 0;
+					for (const auto& pose : poses)
+					{
+						size_t votes = 0;
+						for (size_t i = 0; i < kPointNumberForCheck; ++i)
+							if (poselib::check_cheirality(pose, x1CheiralityCheck[i], x2CheiralityCheck[i]))
+								++votes;
+						if (votes > maxVotes)
+							maxVotes = votes;
+					}
+
+					// Refine the pose(s) with the most cheirality votes and keep the
+					// best by (votes, then BA cost). Refining only the top-voted
+					// pose(s) is typically a single refinement -- fewer than before.
 					for (auto& pose : poses)
 					{
-						// Perform the bundle adjustment
-						poselib::BundleStats stats;
-						poselib::refine_relpose(
-							x1, 
-							x2, 
+						size_t votes = 0;
+						for (size_t i = 0; i < kPointNumberForCheck; ++i)
+							if (poselib::check_cheirality(pose, x1CheiralityCheck[i], x2CheiralityCheck[i]))
+								++votes;
+						if (votes < maxVotes)
+							continue;
+
+						// Perform the bundle adjustment.
+						// NOTE: the returned BundleStats must be captured; previously the
+						// return value was discarded and the uninitialized local `stats.cost`
+						// was read, making the best-pose selection undefined behavior.
+						poselib::BundleStats stats = poselib::refine_relpose(
+							x1,
+							x2,
 							&pose,
 							tmpOptions,
 							weights);
 
-						if (stats.cost < bestCost)
+						if (!haveBestPose || votes > bestVotes ||
+							(votes == bestVotes && stats.cost < bestCost))
 						{
+							bestVotes = votes;
 							bestCost = stats.cost;
 							bestPose = pose;
+							haveBestPose = true;
 						}
 					}
 				}
 				
 				// Composing the essential matrix from the pose
-				if (bestCost < std::numeric_limits<double>::max())
+				if (haveBestPose)
 				{
 					Eigen::Matrix3d essentialMatrix;
 					poselib::essential_from_motion(bestPose, &essentialMatrix);

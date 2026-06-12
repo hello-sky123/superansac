@@ -51,6 +51,23 @@ namespace superansac
 		{
 		protected:
 			bool useInliers;
+			// Number of additional score-gated refit rounds: after the first fit,
+			// the inliers are re-collected from the refined model and the fit is
+			// repeated; a round is kept only if the score improves.
+			size_t extraRefinementRounds = 0;
+			// When enabled, the polish rounds collect the fitting set with a
+			// shrinking threshold schedule (2.0x, 1.0x, 0.5x of the scoring
+			// threshold) instead of reusing the scoring inliers -- a wider first
+			// collection pulls in borderline points, the narrow last round
+			// sharpens the fit (sigma-consensus style). Acceptance stays
+			// score-gated with the unchanged pipeline scoring.
+			bool sigmaSchedule = false;
+			double sigmaScheduleStart = 3.0, // Widest collection multiplier (first round)
+				sigmaScheduleEnd = 0.5; // Narrowest collection multiplier (last round)
+			// When set, the refinement rounds pass the scoring's per-point
+			// confidences (e.g. MAGSAC marginalized weights) to the solver, so
+			// the bundle adjustment becomes a confidence-weighted IRLS fit.
+			bool weightedFit = false;
 
 		public:
 			LeastSquaresOptimizer() : useInliers(false) {}
@@ -59,6 +76,27 @@ namespace superansac
 			void setUseInliers(const bool kUseInliers_)
 			{
 				useInliers = kUseInliers_;
+			}
+
+			void setExtraRefinementRounds(const size_t kRounds_)
+			{
+				extraRefinementRounds = kRounds_;
+			}
+
+			void setSigmaSchedule(const bool kSigmaSchedule_)
+			{
+				sigmaSchedule = kSigmaSchedule_;
+			}
+
+			void setSigmaScheduleRange(const double kStart_, const double kEnd_)
+			{
+				sigmaScheduleStart = kStart_;
+				sigmaScheduleEnd = kEnd_;
+			}
+
+			void setWeightedFit(const bool kWeightedFit_)
+			{
+				weightedFit = kWeightedFit_;
 			}
 
 			// The function for estimating the model parameters from the data points.
@@ -148,6 +186,85 @@ namespace superansac
 						estimatedScore_ = currentScore;
 						tmpInliers.swap(estimatedInliers_);
 					}
+				}
+
+				// Optional score-gated polish: re-collect the inliers from the
+				// refined model and refit; keep a round only if it improves the
+				// score. Runs once per estimation, so the cost is negligible.
+				std::vector<size_t> scheduleInliers;
+				std::vector<double> scheduleResiduals;
+				std::vector<double> fitWeights;
+				for (size_t round = 0; round < extraRefinementRounds; ++round)
+				{
+					// The set the refit uses: the scoring inliers, or -- with the
+					// sigma schedule -- the points within a shrinking multiple of
+					// the scoring threshold w.r.t. the current model.
+					const std::vector<size_t> *fitSet = &estimatedInliers_;
+					if (sigmaSchedule)
+					{
+						// Geometric shrink of the collection threshold from
+						// sigmaScheduleStart*sigma down to sigmaScheduleEnd*sigma
+						// across the rounds (sigma-consensus style: a wide first
+						// collection that narrows to sharpen the fit).
+						const double kMultiplier = (extraRefinementRounds <= 1)
+							? sigmaScheduleEnd
+							: sigmaScheduleStart * std::pow(
+								sigmaScheduleEnd / sigmaScheduleStart,
+								static_cast<double>(round) / (extraRefinementRounds - 1));
+						const double kThreshold = kScoring_->getThreshold() * kMultiplier;
+						const double kSquaredThreshold = kThreshold * kThreshold;
+						const size_t kPointNumber = kData_.rows();
+						scheduleResiduals.resize(kPointNumber);
+						kEstimator_->squaredResiduals(
+							kData_, estimatedModel_, 0, kPointNumber, scheduleResiduals.data());
+						scheduleInliers.clear();
+						for (size_t i = 0; i < kPointNumber; ++i)
+							if (scheduleResiduals[i] < kSquaredThreshold)
+								scheduleInliers.emplace_back(i);
+						if (scheduleInliers.size() > kEstimator_->nonMinimalSampleSize())
+							fitSet = &scheduleInliers;
+					}
+
+					if (fitSet->size() <= kEstimator_->nonMinimalSampleSize())
+						break;
+
+					// Confidence-weighted refit: feed the scoring's per-point
+					// weights (e.g. MAGSAC marginalized confidences) for the fit
+					// set into the solver's LM bundle adjustment.
+					const double *weightsPtr = nullptr;
+					if (weightedFit)
+					{
+						kScoring_->getWeights(kData_, estimatedModel_, kEstimator_, fitWeights, fitSet);
+						weightsPtr = fitWeights.data();
+					}
+
+					std::vector<models::Model> refinedModels;
+					refinedModels.emplace_back(estimatedModel_);
+					if (!kEstimator_->estimateModelNonminimal(
+						kData_,
+						fitSet->data(),
+						fitSet->size(),
+						&refinedModels,
+						weightsPtr))
+						break;
+
+					bool improved = false;
+					for (const auto &model : refinedModels)
+					{
+						tmpInliers.clear();
+						currentScore = kScoring_->score(kData_, model, kEstimator_, tmpInliers);
+						if (estimatedScore_ < currentScore)
+						{
+							estimatedModel_ = model;
+							estimatedScore_ = currentScore;
+							tmpInliers.swap(estimatedInliers_);
+							improved = true;
+						}
+					}
+					// With the sigma schedule, later (narrower) rounds may still
+					// improve after a failed wide round, so keep going.
+					if (!improved && !sigmaSchedule)
+						break;
 				}
 			}
 
