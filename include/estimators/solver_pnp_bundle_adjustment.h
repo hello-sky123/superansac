@@ -121,10 +121,15 @@ namespace superansac
 				if (kSampleNumber_ < sampleSize())
 					return false;
 
-				// The point correspondences
-				std::vector<Eigen::Vector2d> points2d(kSampleNumber_),
-					unnormalizedPoint2d; 
-				std::vector<Eigen::Vector3d> points3d(kSampleNumber_); 
+				// The point correspondences. Thread-local scratch buffers: this solver
+				// runs in the inner loops of the local optimizers, so reusing the
+				// buffers avoids per-call heap allocations. The contents are fully
+				// overwritten below.
+				static thread_local std::vector<Eigen::Vector2d> points2d;
+				static thread_local std::vector<Eigen::Vector3d> points3d;
+				std::vector<Eigen::Vector2d> unnormalizedPoint2d;
+				points2d.resize(kSampleNumber_);
+				points3d.resize(kSampleNumber_);
 
 				// Filling the point correspondences if the sample is not provided
 				if (kSample_ == nullptr)

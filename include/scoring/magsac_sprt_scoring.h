@@ -51,17 +51,20 @@ protected:
     double squaredTruncatedThreshold = 0.0;
     double weightPremultiplier = 0.0;
 
+    // Cached pointer to the interleaved (lower, upper) row of the active DOF;
+    // one cache line per lookup. Values are identical to the constexpr tables.
+    const double* gammaTable_ = nullptr;
+
     FORCE_INLINE std::pair<double,double> getGammaValues(double residual_) const {
         size_t idx = static_cast<size_t>(residual_ * lookupTableSize);
         if (idx >= lookupTableSize) idx = lookupTableSize - 1;
-        // Use cached dofIndex_ instead of recomputing
-        return { lowerIncompleteGammaLookupTable[dofIndex_][idx],
-                 upperIncompleteGammaLookupTable[dofIndex_][idx] };
+        const double* kEntry = gammaTable_ + 2 * idx;
+        return { kEntry[0], kEntry[1] };
     }
     FORCE_INLINE double getUpperGammaValue(double residual_) const {
         size_t idx = static_cast<size_t>(residual_ * lookupTableSize);
         if (idx >= lookupTableSize) idx = lookupTableSize - 1;
-        return upperIncompleteGammaLookupTable[dofIndex_][idx];
+        return gammaTable_[2 * idx + 1];
     }
 
     static constexpr double getOutlierLoss(const size_t &dof)
@@ -170,7 +173,7 @@ protected:
         auto t0 = std::chrono::high_resolution_clock::now();
         volatile double sink = 0.0;
         for (size_t i = 0; i < trials; ++i) {
-            sink += E->squaredResidual(X.row(static_cast<int>(i)), models::Model());
+            sink += E->squaredResidual(X.row(static_cast<int>(i)).data(), models::Model());
         }
         (void)sink;
         auto t1 = std::chrono::high_resolution_clock::now();
@@ -227,6 +230,7 @@ public:
     {
         degreesOfFreedom = kDegreesOfFreedom_;
         dofIndex_ = degreesOfFreedom - 2;  // Cache DOF index for lookup table optimization
+        gammaTable_ = interleavedGammaLookupTable(dofIndex_); // Interleaved (lower, upper) row
         k  = getK(degreesOfFreedom);
         Cn = 1.0 / std::pow(2.0, degreesOfFreedom / 2.0) * boost::math::tgamma(degreesOfFreedom / 2.0);
         squaredSigmaMax         = threshold * threshold;
@@ -286,10 +290,7 @@ public:
         int inlierCount = 0;
         double scoreVal = 0.0;
 
-        auto accumulate_point = [&](int iPos, size_t trueIdx) -> bool {
-            const double sqr =
-                kEstimator_->squaredResidual(kData_.row(static_cast<int>(trueIdx)), kModel_);
-
+        auto accumulate_point = [&](int iPos, size_t trueIdx, const double sqr) -> bool {
             if (sqr < squaredThreshold) {
                 lambdaLR *= (del / eps);
                 if (kStoreInliers_) inliers_.push_back(trueIdx);
@@ -316,16 +317,31 @@ public:
         };
 
         if (kPotentialInlierSets_ == nullptr) {
-            // Sequential iteration (permutation removed for performance)
-            for (int i = 0; i < N; ++i) {
-                if (!accumulate_point(i, i))
-                    return kEmptyScore;
+            // Sequential iteration in blocks: residuals for each block are computed
+            // with a single (batched) virtual call, then consumed by the unchanged
+            // sequential SPRT logic. Identical decisions and arithmetic; on early
+            // exit at most the rest of the current block was computed in vain.
+            // Blocks grow geometrically so that models rejected by the SPRT after a
+            // few points only overshoot by a small block.
+            constexpr int kMaxBlockSize = 256;
+            double sqrBuffer[kMaxBlockSize];
+            int blockSize = 16;
+            for (int base = 0; base < N; ) {
+                const int kCount = std::min(blockSize, N - base);
+                kEstimator_->squaredResiduals(kData_, kModel_, base, kCount, sqrBuffer);
+                for (int j = 0; j < kCount; ++j) {
+                    if (!accumulate_point(base + j, base + j, sqrBuffer[j]))
+                        return kEmptyScore;
+                }
+                base += kCount;
+                blockSize = std::min(blockSize << 1, kMaxBlockSize);
             }
         } else {
             int tested = 0;
             for (const auto *setPtr : *kPotentialInlierSets_) {
                 for (size_t trueIdx : *setPtr) {
-                    if (!accumulate_point(tested, trueIdx))
+                    if (!accumulate_point(tested, trueIdx,
+                            kEstimator_->squaredResidual(kData_.row(static_cast<int>(trueIdx)).data(), kModel_)))
                         return kEmptyScore;
                     ++tested;
                 }
@@ -348,15 +364,15 @@ public:
         if (kIndices_ == nullptr) {
             const int N = kData_.rows();
             weights_.resize(N);
-            for (int i = 0; i < N; ++i) {
-                const double sqr = kEstimator_->squaredResidual(kData_.row(i), kModel_);
-                weights_[i] = magsacWeight(sqr);
-            }
+            // One batched call for all residuals, then transform in place.
+            kEstimator_->squaredResiduals(kData_, kModel_, 0, N, weights_.data());
+            for (int i = 0; i < N; ++i)
+                weights_[i] = magsacWeight(weights_[i]);
         } else {
             const int N = static_cast<int>(kIndices_->size());
             weights_.resize(N);
             for (int i = 0; i < N; ++i) {
-                const double sqr = kEstimator_->squaredResidual(kData_.row(static_cast<int>((*kIndices_)[i])), kModel_);
+                const double sqr = kEstimator_->squaredResidual(kData_.row(static_cast<int>((*kIndices_)[i])).data(), kModel_);
                 weights_[i] = magsacWeight(sqr);
             }
         }

@@ -202,8 +202,11 @@ namespace superansac
 				const size_t kSampleNumber_, // The size of the sample
 				std::vector<models::Model> &models_, // The estimated model parameters
 				const double *kWeights_) const // The weight for each point
-			{				
-				DataMatrix normalizedPoints(kSampleNumber_, kData_.cols()); // The normalized point coordinates
+			{
+				// Thread-local scratch (this solver runs in the local-optimization
+				// inner loops); fully overwritten below.
+				static thread_local DataMatrix normalizedPoints;
+				normalizedPoints.resize(kSampleNumber_, kData_.cols()); // The normalized point coordinates
 				Eigen::Matrix3d normalizingTransformSource, // The normalizing transformations in the source image
 					normalizingTransformDestination; // The normalizing transformations in the destination image
 
@@ -218,7 +221,8 @@ namespace superansac
 					return false;
 				
 				constexpr size_t kEquationNumber = 1;
-				Eigen::MatrixXd coefficients(kSampleNumber_ * kEquationNumber, 9);
+				static thread_local Eigen::MatrixXd coefficients;
+				coefficients.resize(kSampleNumber_ * kEquationNumber, 9);
 
 				// Build coefficient matrix - unroll weighted/unweighted to avoid branch in loop
 				if (kWeights_ == nullptr)
@@ -279,11 +283,15 @@ namespace superansac
 				// the solution is linear subspace of dimensionality 1.
 				// => use the last two singular std::vectors as a basis of the space
 				// (according to SVD properties)
-				Eigen::JacobiSVD<Eigen::MatrixXd> svd(
+				// The 9x9 normal matrix is square, so the (fixed-size) Jacobi SVD runs
+				// the same algorithm as the dynamic one, with no heap allocation.
+				const Eigen::Matrix<double, 9, 9> kNormalMatrix =
 					// Theoretically, it would be faster to apply SVD only to matrix coefficients, but
 					// multiplication is faster than SVD in the Eigen library. Therefore, it is faster
 					// to apply SVD to a smaller matrix.
-					coefficients.transpose() * coefficients,
+					coefficients.transpose() * coefficients;
+				Eigen::JacobiSVD<Eigen::Matrix<double, 9, 9>> svd(
+					kNormalMatrix,
 					Eigen::ComputeFullV);
 				const Eigen::Matrix<double, 9, 1>& kNullSpace =
 					svd.matrixV().rightCols<1>();

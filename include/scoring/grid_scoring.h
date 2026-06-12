@@ -120,7 +120,7 @@ class GridScoring : public AbstractScoring
                 {
                     // Calculate the point-to-model residual
                     squaredResidual =
-                        kEstimator_->squaredResidual(kData_.row(kPointIdx),
+                        kEstimator_->squaredResidual(kData_.row(kPointIdx).data(),
                             kModel_);
 
                     // If the residual is smaller than the threshold, store it as an inlier and
@@ -166,13 +166,11 @@ class GridScoring : public AbstractScoring
                 // Allocate memory for the weights
                 weights_.resize(kPointNumber);
 
-                // Iterate through all points, calculate the squaredResiduals and store the points as inliers if needed.
+                // One batched call for all residuals, then transform in place.
+                kEstimator_->squaredResiduals(kData_, kModel_, 0, kPointNumber, weights_.data());
                 for (int pointIdx = 0; pointIdx < kPointNumber; ++pointIdx)
                 {
-                    // Calculate the point-to-model residual
-                    squaredResidual =
-                        kEstimator_->squaredResidual(kData_.row(pointIdx),
-                            kModel_);
+                    squaredResidual = weights_[pointIdx];
 
                     // If the residual is smaller than the threshold, store it as an inlier and
                     // increase the score.
@@ -196,7 +194,7 @@ class GridScoring : public AbstractScoring
                 {
                     // Calculate the point-to-model residual
                     squaredResidual =
-                        kEstimator_->squaredResidual(kData_.row((*kIndices_)[pointIdx]),
+                        kEstimator_->squaredResidual(kData_.row((*kIndices_)[pointIdx]).data(),
                             kModel_);
 
                     // If the residual is smaller than the threshold, store it as an inlier and

@@ -197,7 +197,8 @@ namespace superansac
 				coefficients0 *= ratio0;
 				coefficients1 *= ratio1;
 				
-				Eigen::MatrixXd covariance =
+				// 3x3 cross-covariance: fixed-size to avoid heap allocation.
+				const Eigen::Matrix3d covariance =
 					coefficients0 * coefficients1.transpose();
 				
 				if (covariance.hasNaN())
@@ -207,10 +208,7 @@ namespace superansac
 				// the solution is linear subspace of dimensionality 2.
 				// => use the last two singular std::vectors as a basis of the space
 				// (according to SVD properties)
-				Eigen::JacobiSVD<Eigen::MatrixXd> svd(
-					// Theoretically, it would be faster to apply SVD only to matrix coefficients, but
-					// multiplication is faster than SVD in the Eigen library. Therefore, it is faster
-					// to apply SVD to a smaller matrix.
+				Eigen::JacobiSVD<Eigen::Matrix3d> svd(
 					covariance,
 					Eigen::ComputeFullV | Eigen::ComputeFullU);
 
@@ -218,7 +216,7 @@ namespace superansac
 
 				if (R.determinant() < 0)
 				{
-					Eigen::MatrixXd V = svd.matrixV();
+					Eigen::Matrix3d V = svd.matrixV();
 					V.col(2) = -V.col(2);
 					R = V * svd.matrixU().transpose();
 				}

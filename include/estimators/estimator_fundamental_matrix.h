@@ -56,11 +56,22 @@ namespace superansac
 		// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
 		class FundamentalMatrixEstimator : public Estimator
 		{
+		protected:
+			// Whether minimal models violating the oriented epipolar constraint
+			// (Chum et al., "Epipolar Geometry Estimation via RANSAC Benefits
+			// from the Oriented Epipolar Constraint") are rejected.
+			bool checkOrientation = false;
+
 		public:
 			FundamentalMatrixEstimator() {}
 			~FundamentalMatrixEstimator() {}
-            
-			// A flag deciding if the points can be weighted when the non-minimal fitting is applied 
+
+			void setOrientationCheck(const bool kCheckOrientation_)
+			{
+				checkOrientation = kCheckOrientation_;
+			}
+
+			// A flag deciding if the points can be weighted when the non-minimal fitting is applied
 			bool isWeightingApplicable() const override
             {
                 return true;
@@ -96,13 +107,16 @@ namespace superansac
 					kSampleSize, // The size of a minimal sample
 					*models_); // The estimated model parameters
 
-				// Orientation constraint check 
-				/*for (short modelIdx = models_->size() - 1; modelIdx >= 0; --modelIdx)
-					if (!isOrientationValid(models_->at(modelIdx).getData(),
-						kData_,
-						kSample_,
-						kSampleSize))
-						models_->erase(models_->begin() + modelIdx);*/
+				// Orientation constraint check: all points of the sample must lie
+				// on the same side of the epipolar geometry; minimal models
+				// violating it cannot stem from a real camera motion.
+				if (checkOrientation)
+					for (int modelIdx = static_cast<int>(models_->size()) - 1; modelIdx >= 0; --modelIdx)
+						if (!isOrientationValid(models_->at(modelIdx).getData().block<3, 3>(0, 0),
+							kData_,
+							kSample_,
+							kSampleSize))
+							models_->erase(models_->begin() + modelIdx);
 
 				// The estimation was successfull if at least one model is kept
 				return models_->size() > 0;
@@ -129,15 +143,15 @@ namespace superansac
 				return true;
 			}
 
-			FORCE_INLINE double squaredResidual(const DataMatrix& point_,
+			FORCE_INLINE double squaredResidual(const double* point_,
 				const models::Model& model_) const override
 			{
 				return squaredResidual(point_, model_.getData());
 			}
 
 			FORCE_INLINE double squaredResidual(
-				const DataMatrix& kPoint_,
-				const Eigen::MatrixXd& kDescriptor_) const
+				const double* kPoint_,
+				const ModelMatrix& kDescriptor_) const
 			{
 				const double squaredResidual = squaredSampsonDistance(kPoint_, kDescriptor_);
 				
@@ -148,14 +162,14 @@ namespace superansac
 
 			// The symmetric epipolar distance between a point correspondence and an essential matrix
 			FORCE_INLINE double squaredSymmetricEpipolarDistance(
-				const DataMatrix& kPoint_,
-				const Eigen::MatrixXd& kDescriptor_) const
+				const double* kPoint_,
+				const ModelMatrix& kDescriptor_) const
 			{
 				// Use const references to avoid copying
-				const double &x1 = kPoint_(0),
-							&y1 = kPoint_(1),
-							&x2 = kPoint_(2),
-							&y2 = kPoint_(3);
+				const double &x1 = kPoint_[0],
+							&y1 = kPoint_[1],
+							&x2 = kPoint_[2],
+							&y2 = kPoint_[3];
 
 				const double 
 					&e11 = kDescriptor_(0, 0),
@@ -179,15 +193,15 @@ namespace superansac
 
 			// The sampson distance between a point_ correspondence and an essential matrix
 			FORCE_INLINE double squaredSampsonDistance(
-				const DataMatrix& kPoint_,
-				const Eigen::MatrixXd& kDescriptor_) const
+				const double* kPoint_,
+				const ModelMatrix& kDescriptor_) const
 			{
 				const double E0_0 = kDescriptor_(0, 0), E0_1 = kDescriptor_(0, 1), E0_2 = kDescriptor_(0, 2);
 				const double E1_0 = kDescriptor_(1, 0), E1_1 = kDescriptor_(1, 1), E1_2 = kDescriptor_(1, 2);
 				const double E2_0 = kDescriptor_(2, 0), E2_1 = kDescriptor_(2, 1), E2_2 = kDescriptor_(2, 2);
 
-				const double x1_0 = kPoint_(0), x1_1 = kPoint_(1);
-				const double x2_0 = kPoint_(2), x2_1 = kPoint_(3);
+				const double x1_0 = kPoint_[0], x1_1 = kPoint_[1];
+				const double x2_0 = kPoint_[2], x2_1 = kPoint_[3];
 
 				const double Ex1_0 = E0_0 * x1_0 + E0_1 * x1_1 + E0_2;
 				const double Ex1_1 = E1_0 * x1_0 + E1_1 * x1_1 + E1_2;
@@ -205,16 +219,33 @@ namespace superansac
 				return r2;
 			}
 
-			FORCE_INLINE double residual(const DataMatrix& point_,
+			FORCE_INLINE double residual(const double* point_,
 				const models::Model& model_) const override
 			{
 				return residual(point_, model_.getData());
 			}
 
-			FORCE_INLINE double residual(const DataMatrix& point_,
-				const DataMatrix& descriptor_) const
+			FORCE_INLINE double residual(const double* point_,
+				const ModelMatrix& descriptor_) const
 			{
 				return sqrt(squaredResidual(point_, descriptor_));
+			}
+
+			// Batched squared residuals: the descriptor is loaded once and the
+			// per-point arithmetic (identical to squaredResidual) runs in a tight,
+			// non-virtual loop over the contiguous row-major rows.
+			void squaredResiduals(
+				const DataMatrix& kData_,
+				const models::Model& kModel_,
+				const size_t kStartRow_,
+				const size_t kCount_,
+				double* kOut_) const override
+			{
+				const ModelMatrix& kDescriptor = kModel_.getData();
+				const size_t kCols = kData_.cols();
+				const double* row = kData_.data() + kStartRow_ * kCols;
+				for (size_t i = 0; i < kCount_; ++i, row += kCols)
+					kOut_[i] = squaredSampsonDistance(row, kDescriptor);
 			}
 
 			// Validate the model by checking the number of inlier with symmetric epipolar distance
@@ -288,10 +319,10 @@ namespace superansac
 			FORCE_INLINE double getOrientationSignum(
 				const Eigen::Matrix3d &kFundamentalMatrix_,
 				const Eigen::Vector3d &kEpipole_,
-				const DataMatrix &kPoint_) const
+				const double* kPoint_) const
 			{
-				double signum1 = kFundamentalMatrix_(0, 0) * kPoint_(2) + kFundamentalMatrix_(1, 0) * kPoint_(3) + kFundamentalMatrix_(2, 0),
-					signum2 = kEpipole_(1) - kEpipole_(2) * kPoint_(1);
+				double signum1 = kFundamentalMatrix_(0, 0) * kPoint_[2] + kFundamentalMatrix_(1, 0) * kPoint_[3] + kFundamentalMatrix_(2, 0),
+					signum2 = kEpipole_(1) - kEpipole_(2) * kPoint_[1];
 				return signum1 * signum2;
 			}
 
@@ -310,11 +341,11 @@ namespace superansac
 				if (kSample_ == nullptr)
 				{
 					// Get the sign of orientation of the first point in the sample
-					signum2 = getOrientationSignum(kFundamentalMatrix_, epipole, kData_.row(0));
+					signum2 = getOrientationSignum(kFundamentalMatrix_, epipole, kData_.row(0).data());
 					for (size_t i = 1; i < kSampleSize_; i++)
 					{
 						// Get the sign of orientation of the i-th point_ in the sample
-						signum1 = getOrientationSignum(kFundamentalMatrix_, epipole, kData_.row(i));
+						signum1 = getOrientationSignum(kFundamentalMatrix_, epipole, kData_.row(i).data());
 						// The signs should be equal, otherwise, the fundamental matrix is invalid
 						if (signum2 * signum1 < 0)
 							return false;
@@ -323,11 +354,11 @@ namespace superansac
 				else
 				{
 					// Get the sign of orientation of the first point_ in the sample
-					signum2 = getOrientationSignum(kFundamentalMatrix_, epipole, kData_.row(kSample_[0]));
+					signum2 = getOrientationSignum(kFundamentalMatrix_, epipole, kData_.row(kSample_[0]).data());
 					for (size_t i = 1; i < kSampleSize_; i++)
 					{
 						// Get the sign of orientation of the i-th point_ in the sample
-						signum1 = getOrientationSignum(kFundamentalMatrix_, epipole, kData_.row(kSample_[i]));
+						signum1 = getOrientationSignum(kFundamentalMatrix_, epipole, kData_.row(kSample_[i]).data());
 						// The signs should be equal, otherwise, the fundamental matrix is invalid
 						if (signum2 * signum1 < 0)
 							return false;

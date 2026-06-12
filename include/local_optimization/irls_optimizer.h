@@ -124,40 +124,34 @@ namespace superansac
 
 					if (useInliers)
 					{
-						if (kInliers_.size() > 0)
-						{
-							// Estimate the model using the inliers
-							if (!kEstimator_->estimateModelNonminimal(
-								kData_,  // The data points
-								&kInliers_[0], 
-								kInliers_.size(),
-								&estimatedModels,
-								nullptr))
-							{
-								estimatedScore_ = kInvalidScore;
-								return;
-							}
-						}
-						else
-						{
-							// Calculate the score of the estimated model
-							currentScore = kScoring_->score(kData_, kModel_, kEstimator_, estimatedInliers_);
+						// Use the provided inliers only for the first fit; afterwards
+						// refit from the inliers re-collected from the refined model.
+						// (Previously every iteration refit from the same kInliers_,
+						// so all iterations after the first produced the same model.)
+						const std::vector<size_t> &kFitInliers =
+							(iteration == 0 && kInliers_.size() > 0) ? kInliers_ : estimatedInliers_;
 
-							// Estimate the model using the inliers
-							if (!kEstimator_->estimateModelNonminimal(
-								kData_,  // The data points
-								&estimatedInliers_[0], 
-								estimatedInliers_.size(),
-								&estimatedModels,
-								nullptr))
+						if (kFitInliers.size() < kEstimator_->nonMinimalSampleSize())
+							break;
+
+						// Estimate the model using the inliers
+						if (!kEstimator_->estimateModelNonminimal(
+							kData_,  // The data points
+							kFitInliers.data(),
+							kFitInliers.size(),
+							&estimatedModels,
+							nullptr))
+						{
+							if (iteration == 0)
 							{
 								estimatedScore_ = kInvalidScore;
 								return;
 							}
+							break;
 						}
 					} else if (!kEstimator_->estimateModelNonminimal( // Estimate the model using the inliers
 						kData_,  // The data points
-						&estimatedInliers_[0], 
+						&estimatedInliers_[0],
 						estimatedInliers_.size(),
 						&estimatedModels,
 						&weights[0]))

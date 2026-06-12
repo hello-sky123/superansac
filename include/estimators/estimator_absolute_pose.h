@@ -115,21 +115,21 @@ namespace superansac
 				return models_->size();
 			}
 
-			FORCE_INLINE double squaredResidual(const DataMatrix& point_,
+			FORCE_INLINE double squaredResidual(const double* point_,
 				const models::Model& model_) const override
 			{
 				return squaredResidual(point_, model_.getData());
 			}
 
-			FORCE_INLINE double squaredResidual(const DataMatrix& point_,
-				const DataMatrix& descriptor_) const
+			FORCE_INLINE double squaredResidual(const double* point_,
+				const ModelMatrix& descriptor_) const
 			{
-				const double 
-					&u = point_(0),
-					&v = point_(1),
-					&x = point_(2),
-					&y = point_(3),
-					&z = point_(4);
+				const double
+					&u = point_[0],
+					&v = point_[1],
+					&x = point_[2],
+					&y = point_[3],
+					&z = point_[4];
 
 				const double 
 					&r11 = descriptor_(0, 0),
@@ -158,16 +158,33 @@ namespace superansac
 				return du * du + dv * dv;
 			}
 
-			FORCE_INLINE double residual(const DataMatrix& point_,
+			FORCE_INLINE double residual(const double* point_,
 				const models::Model& model_) const override
 			{
 				return residual(point_, model_.getData());
 			}
 
-			FORCE_INLINE double residual(const DataMatrix& point_,
-				const DataMatrix& descriptor_) const
+			FORCE_INLINE double residual(const double* point_,
+				const ModelMatrix& descriptor_) const
 			{
 				return sqrt(squaredResidual(point_, descriptor_));
+			}
+
+			// Batched squared residuals: the descriptor is loaded once and the
+			// per-point arithmetic (identical to squaredResidual) runs in a tight,
+			// non-virtual loop over the contiguous row-major rows.
+			void squaredResiduals(
+				const DataMatrix& kData_,
+				const models::Model& kModel_,
+				const size_t kStartRow_,
+				const size_t kCount_,
+				double* kOut_) const override
+			{
+				const ModelMatrix& kDescriptor = kModel_.getData();
+				const size_t kCols = kData_.cols();
+				const double* row = kData_.data() + kStartRow_ * kCols;
+				for (size_t i = 0; i < kCount_; ++i, row += kCols)
+					kOut_[i] = squaredResidual(row, kDescriptor);
 			}
 
 			// Enable a quick check to see if the model is valid. This can be a geometric

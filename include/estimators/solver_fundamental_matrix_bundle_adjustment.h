@@ -117,11 +117,25 @@ namespace superansac
 				if (kSampleNumber_ < sampleSize())
 					return false;
 
-				std::vector<Eigen::Vector2d> x1(kSampleNumber_); 
-				std::vector<Eigen::Vector2d> x2(kSampleNumber_); 
-				std::vector<double> weights;
-				bool useWeights = (pointWeights != nullptr && pointWeights->size() == kSampleNumber_);
-				if (useWeights)
+				// Thread-local scratch buffers: this solver runs in the inner loops of
+				// the local optimizers, so reusing the buffers avoids per-call heap
+				// allocations. The contents are fully overwritten below.
+				static thread_local std::vector<Eigen::Vector2d> x1;
+				static thread_local std::vector<Eigen::Vector2d> x2;
+				static thread_local std::vector<double> weights;
+				x1.resize(kSampleNumber_);
+				x2.resize(kSampleNumber_);
+				weights.clear();
+				// Per-constraint confidences fed into the LM bundle adjustment.
+				// The kWeights_ array passed by the local optimizers (e.g. the
+				// MAGSAC marginalized weights aligned with the sample order) takes
+				// precedence; the member pointWeights is the legacy fallback.
+				// Previously kWeights_ was silently ignored, so the LM always ran
+				// with uniform per-point weights.
+				const bool useArgWeights = kWeights_ != nullptr;
+				const bool useMemberWeights = !useArgWeights &&
+					pointWeights != nullptr && pointWeights->size() == kSampleNumber_;
+				if (useArgWeights || useMemberWeights)
 					weights.resize(kSampleNumber_);
 
 				if (kSample_ == nullptr)
@@ -130,7 +144,9 @@ namespace superansac
 					{
 						x1[pointIdx] = Eigen::Vector2d(kData_(pointIdx, 0), kData_(pointIdx, 1));
 						x2[pointIdx] = Eigen::Vector2d(kData_(pointIdx, 2), kData_(pointIdx, 3));
-						if (useWeights)
+						if (useArgWeights)
+							weights[pointIdx] = kWeights_[pointIdx];
+						else if (useMemberWeights)
 							weights[pointIdx] = pointWeights->at(pointIdx);
 					}
 				} else
@@ -140,7 +156,9 @@ namespace superansac
 						const size_t &idx = kSample_[pointIdx];
 						x1[pointIdx] = Eigen::Vector2d(kData_(idx, 0), kData_(idx, 1));
 						x2[pointIdx] = Eigen::Vector2d(kData_(idx, 2), kData_(idx, 3));
-						if (useWeights)
+						if (useArgWeights)
+							weights[pointIdx] = kWeights_[pointIdx];
+						else if (useMemberWeights)
 							weights[pointIdx] = pointWeights->at(idx);
 					}
 				}
@@ -168,26 +186,12 @@ namespace superansac
 					Eigen::Matrix3d fundamentalMatrix = model.getMutableData().block<3, 3>(0, 0).eval();
 
 					// Perform the bundle adjustment
-					poselib::BundleStats stats;
 					poselib::refine_fundamental(
-						x1, 
-						x2, 
+						x1,
+						x2,
 						&fundamentalMatrix,
 						tmpOptions,
 						weights);
-					
-					if (stats.cost > stats.initial_cost)
-					{
-						std::cout <<std::endl<<stats.iterations;
-						std::cout <<std::endl<<stats.initial_cost;
-						std::cout <<std::endl<<stats.cost;
-						std::cout <<std::endl<<stats.lambda;
-						std::cout <<std::endl<<stats.invalid_steps;
-						std::cout <<std::endl<<stats.step_norm;
-						std::cout <<std::endl<<stats.grad_norm;
-
-						while (1);
-					}
 
 					// Update the model
 					model.getMutableData().block<3, 3>(0, 0) = fundamentalMatrix;

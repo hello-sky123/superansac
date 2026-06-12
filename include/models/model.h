@@ -55,23 +55,25 @@ public:
     Model () {}
     ~Model() {}
 
-    // Set the data of the model
-    void setData(const DataMatrix &kData_) {
+    // Set the data of the model. Accepting the fixed-capacity type means
+    // expressions are evaluated into a stack temporary (no aliasing issues,
+    // no heap allocation).
+    void setData(const ModelMatrix &kData_) {
         data = kData_;
     }
 
     // Return the data of the model
-    const DataMatrix &getData() const {
+    const ModelMatrix &getData() const {
         return data;
     }
 
     // Return the data of the model
-    DataMatrix &getMutableData() {
+    ModelMatrix &getMutableData() {
         return data;
     }
-       
+
 protected:
-    DataMatrix data;
+    ModelMatrix data;
 };
 
 }

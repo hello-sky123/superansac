@@ -86,26 +86,30 @@ class MAGSACScoring : public AbstractScoring
             return boost::math::tgamma(a) - boost::math::tgamma_lower(a, x);
         }
 
+        // Cached pointer to the interleaved (lower, upper) row of the active DOF;
+        // one cache line per lookup. Values are identical to the constexpr tables.
+        const double* gammaTable_ = nullptr;
+
         FORCE_INLINE std::pair<double, double> getGammaValues(double residual_) const
         {
             size_t index = static_cast<size_t>(residual_ * lookupTableSize);
             index = (index < lookupTableSize) ? index : (lookupTableSize - 1);
-            // Use cached dofIndex_ to reduce repeated computation
-            return { lowerIncompleteGammaLookupTable[dofIndex_][index], upperIncompleteGammaLookupTable[dofIndex_][index] };
+            const double* kEntry = gammaTable_ + 2 * index;
+            return { kEntry[0], kEntry[1] };
         }
 
         FORCE_INLINE double getUpperGammaValue(double residual_) const
         {
             size_t index = static_cast<size_t>(residual_ * lookupTableSize);
             index = (index < lookupTableSize) ? index : (lookupTableSize - 1);
-            return upperIncompleteGammaLookupTable[dofIndex_][index];
+            return gammaTable_[2 * index + 1];
         }
 
         FORCE_INLINE double getLowerGammaValue(double residual_) const
         {
             size_t index = static_cast<size_t>(residual_ * lookupTableSize);
             index = (index < lookupTableSize) ? index : (lookupTableSize - 1);
-            return lowerIncompleteGammaLookupTable[dofIndex_][index];
+            return gammaTable_[2 * index];
         }
 
     public:
@@ -188,6 +192,7 @@ class MAGSACScoring : public AbstractScoring
                 throw std::runtime_error("The threshold is not set for the MAGSAC scoring object.");
             degreesOfFreedom = kDegreesOfFreedom_; // Degrees of freedom
             dofIndex_ = degreesOfFreedom - 2;  // Cache DOF index for lookup table optimization
+            gammaTable_ = interleavedGammaLookupTable(dofIndex_); // Interleaved (lower, upper) row
             k = getK(degreesOfFreedom); //kEstimator_->getK(); // The 0.99 quantile of the distribution
             //std::cout << degreesOfFreedom << std::endl;
             Cn = 1.0 / std::pow(2, degreesOfFreedom / 2.0) * boost::math::tgamma(degreesOfFreedom / 2.0); // Normalization constant
@@ -379,7 +384,7 @@ class MAGSACScoring : public AbstractScoring
                     {
                         // Calculate the point-to-model residual
                         squaredResidual =
-                            kEstimator_->squaredResidual(kData_.row(pointIdx),
+                            kEstimator_->squaredResidual(kData_.row(pointIdx).data(),
                                 kModel_);
 
                         // If the residual is smaller than the threshold, store it as an inlier and
@@ -420,16 +425,24 @@ class MAGSACScoring : public AbstractScoring
                 const double kBestPossibleGain = premultiplier * zeroResidualLoss;
                 const double kBestScoreValue = kBestScore_.getValue();
 
-                // Iterate through all points, calculate the squaredResiduals and store the points as inliers if needed.
-                #ifdef __GNUC__
-                #pragma GCC ivdep  // Tell compiler iterations are independent for vectorization
-                #endif
-                for (int pointIdx = 0; pointIdx < kPointNumber; ++pointIdx)
+                // Iterate through all points in blocks: residuals for each block are
+                // computed with a single (batched) virtual call, then consumed by the
+                // unchanged sequential logic. Identical decisions and arithmetic; on
+                // early exit at most the rest of the current block was computed in vain.
+                // Blocks grow geometrically so that models rejected early only
+                // overshoot by a small block.
+                constexpr int kMaxBlockSize = 256;
+                double sqrBuffer[kMaxBlockSize];
+                int blockSize = 16;
+                for (int base = 0; base < kPointNumber;
+                     base += blockSize, blockSize = std::min(blockSize << 1, kMaxBlockSize))
                 {
-                    // Calculate the point-to-model residual
-                    squaredResidual =
-                        kEstimator_->squaredResidual(kData_.row(pointIdx),
-                            kModel_);
+                    const int kCount = std::min(blockSize, kPointNumber - base);
+                    kEstimator_->squaredResiduals(kData_, kModel_, base, kCount, sqrBuffer);
+                for (int j = 0; j < kCount; ++j)
+                {
+                    const int pointIdx = base + j;
+                    squaredResidual = sqrBuffer[j];
 
                     // If the residual is smaller than the threshold, store it as an inlier and
                     // increase the score.
@@ -461,8 +474,9 @@ class MAGSACScoring : public AbstractScoring
                     if (kBestPossibleGain * (kPointNumber - pointIdx - 1) + scoreValue < kBestScoreValue)
                         return kEmptyScore;
                 }
+                }
             }
-            
+
             return Score(inlierNumber, scoreValue);
         }
 
@@ -486,14 +500,13 @@ class MAGSACScoring : public AbstractScoring
                 // Allocate memory for the weights
                 weights_.resize(kPointNumber);
 
-                // Iterate through all points, calculate the squaredResiduals and store the points as inliers if needed.
+                // Compute all squared residuals with one batched call directly into
+                // the weights buffer, then transform them in place.
+                kEstimator_->squaredResiduals(kData_, kModel_, 0, kPointNumber, weights_.data());
                 for (int pointIdx = 0; pointIdx < kPointNumber; ++pointIdx)
                 {
-                    // Calculate the point-to-model residual
-                    squaredResidual =
-                        kEstimator_->squaredResidual(kData_.row(pointIdx),
-                            kModel_);
-                            
+                    squaredResidual = weights_[pointIdx];
+
                     // If the residual is smaller than the threshold, store it as an inlier and
                     // increase the score.
                     if (squaredResidual < squaredThreshold)
@@ -522,7 +535,7 @@ class MAGSACScoring : public AbstractScoring
                 {
                     // Calculate the point-to-model residual
                     squaredResidual =
-                        kEstimator_->squaredResidual(kData_.row((*kIndices_)[pointIdx]),
+                        kEstimator_->squaredResidual(kData_.row((*kIndices_)[pointIdx]).data(),
                             kModel_);
                             
                     // If the residual is smaller than the threshold, store it as an inlier and

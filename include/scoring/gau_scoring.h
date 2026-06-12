@@ -89,13 +89,19 @@ class GAUScoring : public AbstractScoring
             // The score of the previous best model
             const double kBestInlierNumber = kBestScore_.getInlierNumber();
 
-            // Iterate through all points, calculate the squaredResiduals and store the points as inliers if needed.
-            for (int pointIdx = 0; pointIdx < kPointNumber; ++pointIdx)
+            // Iterate through all points in blocks: residuals for each block are
+            // computed with one batched virtual call, then consumed by the unchanged
+            // sequential logic (identical decisions/arithmetic).
+            constexpr int kBlockSize = 256;
+            double sqrBuffer[kBlockSize];
+            for (int base = 0; base < kPointNumber; base += kBlockSize)
             {
-                // Calculate the point-to-model residual
-                squaredResidual =
-                    kEstimator_->squaredResidual(kData_.row(pointIdx),
-                        kModel_);
+                const int kCount = std::min(kBlockSize, kPointNumber - base);
+                kEstimator_->squaredResiduals(kData_, kModel_, base, kCount, sqrBuffer);
+            for (int j = 0; j < kCount; ++j)
+            {
+                const int pointIdx = base + j;
+                squaredResidual = sqrBuffer[j];
 
                 // If the residual is smaller than the threshold, store it as an inlier and
                 // increase the score.
@@ -108,12 +114,13 @@ class GAUScoring : public AbstractScoring
                     ++inlierNumber;
                 }
 
-                // Increase the score. 
+                // Increase the score.
                 scoreValue += log(1.0 + exp((squaredThreshold - squaredResidual) / (2.0 * squaredThreshold)));
 
                 // Interrupt if there is no chance of being better than the best model
                 //if (kPointNumber - pointIdx + inlierNumber < kBestInlierNumber)
                 //    return kEmptyScore;
+            }
             }
 
             return Score(inlierNumber, scoreValue);
@@ -136,13 +143,11 @@ class GAUScoring : public AbstractScoring
                 // Allocate memory for the weights
                 weights_.resize(kPointNumber);
 
-                // Iterate through all points, calculate the squaredResiduals and store the points as inliers if needed.
+                // One batched call for all residuals, then transform in place.
+                kEstimator_->squaredResiduals(kData_, kModel_, 0, kPointNumber, weights_.data());
                 for (int pointIdx = 0; pointIdx < kPointNumber; ++pointIdx)
                 {
-                    // Calculate the point-to-model residual
-                    squaredResidual =
-                        kEstimator_->squaredResidual(kData_.row(pointIdx),
-                            kModel_);
+                    squaredResidual = weights_[pointIdx];
 
                     // If the residual is smaller than the threshold, store it as an inlier and
                     // increase the score.
@@ -166,7 +171,7 @@ class GAUScoring : public AbstractScoring
                 {
                     // Calculate the point-to-model residual
                     squaredResidual =
-                        kEstimator_->squaredResidual(kData_.row((*kIndices_)[pointIdx]),
+                        kEstimator_->squaredResidual(kData_.row((*kIndices_)[pointIdx]).data(),
                             kModel_);
 
                     // If the residual is smaller than the threshold, store it as an inlier and

@@ -204,7 +204,9 @@ namespace superansac
 				// For the minimal problem, the matrix is small and, thus, fullPivLu decomposition is significantly
 				// faster than both JacobiSVD and BDCSVD methods.
 				// https://eigen.tuxfamily.org/dox/group__DenseDecompositionBenchmark.html
-				const Eigen::FullPivLU<Eigen::MatrixXd> lu(coefficients);
+				// The fixed-size decomposition runs the same pivoting/arithmetic as the
+				// dynamic one but without heap allocations.
+				const Eigen::FullPivLU<Eigen::Matrix<double, 7, 9>> lu(coefficients);
 				if (lu.dimensionOfKernel() != 2) 
 					return false;
 
@@ -259,7 +261,10 @@ namespace superansac
                 const double *kWeights_) const // The weight for each point
 			{
 				constexpr size_t kEquationNumber = 1;
-				Eigen::Matrix<double, Eigen::Dynamic, 9> coefficients(kSampleNumber_, 9);
+				// Thread-local scratch (this solver runs in the local-optimization
+				// inner loops); fully overwritten below.
+				static thread_local Eigen::Matrix<double, Eigen::Dynamic, 9> coefficients;
+				coefficients.resize(kSampleNumber_, 9);
 
 				size_t rowIdx = 0;
 				double weight = 1.0;
@@ -320,11 +325,15 @@ namespace superansac
 				// the solution is linear subspace of dimensionality 2.
 				// => use the last two singular std::vectors as a basis of the space
 				// (according to SVD properties)
-				Eigen::JacobiSVD<Eigen::MatrixXd> svd(
+				// The 9x9 normal matrix is square, so the (fixed-size) Jacobi SVD runs
+				// the same algorithm as the dynamic one, with no heap allocation.
+				const Eigen::Matrix<double, 9, 9> kNormalMatrix =
 					// Theoretically, it would be faster to apply SVD only to matrix coefficients, but
 					// multiplication is faster than SVD in the Eigen library. Therefore, it is faster
 					// to apply SVD to a smaller matrix.
-					coefficients.transpose() * coefficients,
+					coefficients.transpose() * coefficients;
+				Eigen::JacobiSVD<Eigen::Matrix<double, 9, 9>> svd(
+					kNormalMatrix,
 					Eigen::ComputeFullV);
 				f1 = svd.matrixV().block<9, 1>(0, 7);
 				f2 = svd.matrixV().block<9, 1>(0, 8);

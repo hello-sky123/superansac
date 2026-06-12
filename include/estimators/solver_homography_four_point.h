@@ -228,8 +228,12 @@ namespace superansac
 				constexpr size_t kEquationNumber = 2;
 				const size_t columns = kData_.cols();
 				const size_t kRowNumber = kEquationNumber * kSampleNumber_;
-				DataMatrix coefficients(kRowNumber, 8);
-				DataMatrix inhomogeneous(kRowNumber, 1);
+				// Thread-local scratch (this solver runs in the local-optimization
+				// inner loops); fully overwritten below.
+				static thread_local DataMatrix coefficients;
+				static thread_local DataMatrix inhomogeneous;
+				coefficients.resize(kRowNumber, 8);
+				inhomogeneous.resize(kRowNumber, 1);
     			coefficients.setZero(); // Initialize the matrix with zeros
 
 				size_t rowIdx = 0;

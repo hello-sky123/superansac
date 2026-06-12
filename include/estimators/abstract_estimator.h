@@ -152,8 +152,29 @@ namespace superansac
 
 			// Given a model and a data point, calculate the error. Users should implement
 			// this function appropriately for the task being solved.
-			FORCE_INLINE virtual double residual(const DataMatrix& kData_, const models::Model& kModel_) const = 0;
-			FORCE_INLINE virtual double squaredResidual(const DataMatrix& kData_, const models::Model& kModel_) const = 0;
+			// The point is passed as a raw pointer to the (contiguous) row of the
+			// row-major data matrix, i.e. kData_.row(i).data(), so that no Eigen
+			// temporary is materialized per call.
+			FORCE_INLINE virtual double residual(const double* kPoint_, const models::Model& kModel_) const = 0;
+			FORCE_INLINE virtual double squaredResidual(const double* kPoint_, const models::Model& kModel_) const = 0;
+
+			// Compute the squared residuals of kCount_ consecutive rows of the
+			// (row-major) data matrix, starting at row kStartRow_, into kOut_.
+			// One virtual call per block lets the implementations hoist the model
+			// descriptor out of the per-point loop. The per-point arithmetic is
+			// identical to squaredResidual(), so the results are bit-for-bit equal.
+			virtual void squaredResiduals(
+				const DataMatrix& kData_, // All data points
+				const models::Model& kModel_, // The model parameters
+				const size_t kStartRow_, // First row to process
+				const size_t kCount_, // Number of consecutive rows to process
+				double* kOut_) const // Output buffer of size kCount_
+			{
+				const size_t kCols = kData_.cols();
+				const double* row = kData_.data() + kStartRow_ * kCols;
+				for (size_t i = 0; i < kCount_; ++i, row += kCols)
+					kOut_[i] = squaredResidual(row, kModel_);
+			}
 			
 			// A function to decide if the selected sample is degenerate or not
 			// before calculating the model parameters

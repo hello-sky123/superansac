@@ -6,10 +6,11 @@
 
 
 /*
-	special constants for node->parent
+	special constants for node parent arc indices
+	(see INDEX_TERMINAL / INDEX_ORPHAN in graph.h):
+	INDEX_TERMINAL - arc to terminal
+	INDEX_ORPHAN   - orphan
 */
-#define TERMINAL ( (arc *) 1 )		/* to terminal */
-#define ORPHAN   ( (arc *) 2 )		/* orphan */
 
 
 #define INFINITE_D (static_cast<int>(((unsigned)-1)/2))		/* infinite distance to the terminal */
@@ -18,9 +19,9 @@
 
 /*
 	Functions for processing active list.
-	i->next points to the next node in the list
-	(or to i, if i is the last node in the list).
-	If i->next is NULL iff i is not in the list.
+	nodes[i].next is the index of the next node in the list
+	(or i itself, if i is the last node in the list).
+	nodes[i].next is INDEX_NONE iff i is not in the list.
 
 	There are two queues. Active nodes are added
 	to the end of the second queue and read from
@@ -30,16 +31,16 @@
 */
 
 
-template <typename captype, typename tcaptype, typename flowtype> 
-	inline void Graph<captype,tcaptype,flowtype>::set_active(node *i)
+template <typename captype, typename tcaptype, typename flowtype>
+	inline void Graph<captype,tcaptype,flowtype>::set_active(int i)
 {
-	if (!i->next)
+	if (nodes[i].next == INDEX_NONE)
 	{
 		/* it's not in the list yet */
-		if (queue_last[1]) queue_last[1] -> next = i;
-		else               queue_first[1]        = i;
+		if (queue_last[1] != INDEX_NONE) nodes[queue_last[1]].next = i;
+		else                             queue_first[1]            = i;
 		queue_last[1] = i;
-		i -> next = i;
+		nodes[i].next = i;
 	}
 }
 
@@ -48,50 +49,50 @@ template <typename captype, typename tcaptype, typename flowtype>
 	If it is connected to the sink, it stays in the list,
 	otherwise it is removed from the list
 */
-template <typename captype, typename tcaptype, typename flowtype> 
-	inline typename Graph<captype,tcaptype,flowtype>::node* Graph<captype,tcaptype,flowtype>::next_active()
+template <typename captype, typename tcaptype, typename flowtype>
+	inline int Graph<captype,tcaptype,flowtype>::next_active()
 {
-	node *i;
+	int i;
 
 	while ( 1 )
 	{
-		if (!(i=queue_first[0]))
+		if ((i=queue_first[0]) == INDEX_NONE)
 		{
 			queue_first[0] = i = queue_first[1];
 			queue_last[0]  = queue_last[1];
-			queue_first[1] = NULL;
-			queue_last[1]  = NULL;
-			if (!i) return NULL;
+			queue_first[1] = INDEX_NONE;
+			queue_last[1]  = INDEX_NONE;
+			if (i == INDEX_NONE) return INDEX_NONE;
 		}
 
 		/* remove it from the active list */
-		if (i->next == i) queue_first[0] = queue_last[0] = NULL;
-		else              queue_first[0] = i -> next;
-		i -> next = NULL;
+		if (nodes[i].next == i) queue_first[0] = queue_last[0] = INDEX_NONE;
+		else                    queue_first[0] = nodes[i].next;
+		nodes[i].next = INDEX_NONE;
 
 		/* a node in the list is active iff it has a parent */
-		if (i->parent) return i;
+		if (nodes[i].parent != INDEX_NONE) return i;
 	}
 }
 
 /***********************************************************************/
 
-template <typename captype, typename tcaptype, typename flowtype> 
-	inline void Graph<captype,tcaptype,flowtype>::set_orphan_front(node *i)
+template <typename captype, typename tcaptype, typename flowtype>
+	inline void Graph<captype,tcaptype,flowtype>::set_orphan_front(int i)
 {
 	nodeptr *np;
-	i -> parent = ORPHAN;
+	nodes[i].parent = INDEX_ORPHAN;
 	np = nodeptr_block -> New();
 	np -> ptr = i;
 	np -> next = orphan_first;
 	orphan_first = np;
 }
 
-template <typename captype, typename tcaptype, typename flowtype> 
-	inline void Graph<captype,tcaptype,flowtype>::set_orphan_rear(node *i)
+template <typename captype, typename tcaptype, typename flowtype>
+	inline void Graph<captype,tcaptype,flowtype>::set_orphan_rear(int i)
 {
 	nodeptr *np;
-	i -> parent = ORPHAN;
+	nodes[i].parent = INDEX_ORPHAN;
 	np = nodeptr_block -> New();
 	np -> ptr = i;
 	if (orphan_last) orphan_last -> next = np;
@@ -102,100 +103,101 @@ template <typename captype, typename tcaptype, typename flowtype>
 
 /***********************************************************************/
 
-template <typename captype, typename tcaptype, typename flowtype> 
-	inline void Graph<captype,tcaptype,flowtype>::add_to_changed_list(node *i)
+template <typename captype, typename tcaptype, typename flowtype>
+	inline void Graph<captype,tcaptype,flowtype>::add_to_changed_list(int i)
 {
-	if (changed_list && !i->is_in_changed_list)
+	if (changed_list && !nodes[i].is_in_changed_list)
 	{
 		node_id* ptr = changed_list->New();
-		*ptr = (node_id)(i - nodes);
-		i->is_in_changed_list = true;
+		*ptr = i;
+		nodes[i].is_in_changed_list = true;
 	}
 }
 
 /***********************************************************************/
 
-template <typename captype, typename tcaptype, typename flowtype> 
+template <typename captype, typename tcaptype, typename flowtype>
 	void Graph<captype,tcaptype,flowtype>::maxflow_init()
 {
-	node *i;
+	int i;
 
-	queue_first[0] = queue_last[0] = NULL;
-	queue_first[1] = queue_last[1] = NULL;
+	queue_first[0] = queue_last[0] = INDEX_NONE;
+	queue_first[1] = queue_last[1] = INDEX_NONE;
 	orphan_first = NULL;
 
 	TIME = 0;
 
-	for (i=nodes; i<node_last; i++)
+	for (i=0; i<node_num; i++)
 	{
-		i -> next = NULL;
-		i -> is_marked = 0;
-		i -> is_in_changed_list = 0;
-		i -> TS = TIME;
-		if (i->tr_cap > 0)
+		node* n = nodes + i;
+		n -> next = INDEX_NONE;
+		n -> is_marked = 0;
+		n -> is_in_changed_list = 0;
+		n -> TS = TIME;
+		if (n->tr_cap > 0)
 		{
 			/* i is connected to the source */
-			i -> is_sink = 0;
-			i -> parent = TERMINAL;
+			n -> is_sink = 0;
+			n -> parent = INDEX_TERMINAL;
 			set_active(i);
-			i -> DIST = 1;
+			n -> DIST = 1;
 		}
-		else if (i->tr_cap < 0)
+		else if (n->tr_cap < 0)
 		{
 			/* i is connected to the sink */
-			i -> is_sink = 1;
-			i -> parent = TERMINAL;
+			n -> is_sink = 1;
+			n -> parent = INDEX_TERMINAL;
 			set_active(i);
-			i -> DIST = 1;
+			n -> DIST = 1;
 		}
 		else
 		{
-			i -> parent = NULL;
+			n -> parent = INDEX_NONE;
 		}
 	}
 }
 
-template <typename captype, typename tcaptype, typename flowtype> 
+template <typename captype, typename tcaptype, typename flowtype>
 	void Graph<captype,tcaptype,flowtype>::maxflow_reuse_trees_init()
 {
-	node* i;
-	node* j;
-	node* queue = queue_first[1];
-	arc* a;
+	int i;
+	int j;
+	int queue = queue_first[1];
+	int a;
 	nodeptr* np;
 
-	queue_first[0] = queue_last[0] = NULL;
-	queue_first[1] = queue_last[1] = NULL;
+	queue_first[0] = queue_last[0] = INDEX_NONE;
+	queue_first[1] = queue_last[1] = INDEX_NONE;
 	orphan_first = orphan_last = NULL;
 
 	TIME ++;
 
-	while ((i=queue))
+	while ((i=queue) != INDEX_NONE)
 	{
-		queue = i->next;
-		if (queue == i) queue = NULL;
-		i->next = NULL;
-		i->is_marked = 0;
+		queue = nodes[i].next;
+		if (queue == i) queue = INDEX_NONE;
+		nodes[i].next = INDEX_NONE;
+		nodes[i].is_marked = 0;
 		set_active(i);
 
-		if (i->tr_cap == 0)
+		if (nodes[i].tr_cap == 0)
 		{
-			if (i->parent) set_orphan_rear(i);
+			if (nodes[i].parent != INDEX_NONE) set_orphan_rear(i);
 			continue;
 		}
 
-		if (i->tr_cap > 0)
+		if (nodes[i].tr_cap > 0)
 		{
-			if (!i->parent || i->is_sink)
+			if (nodes[i].parent == INDEX_NONE || nodes[i].is_sink)
 			{
-				i->is_sink = 0;
-				for (a=i->first; a; a=a->next)
+				nodes[i].is_sink = 0;
+				for (a=nodes[i].first; a!=INDEX_NONE; a=arcs[a].next)
 				{
-					j = a->head;
-					if (!j->is_marked)
+					j = arcs[a].head;
+					if (!nodes[j].is_marked)
 					{
-						if (j->parent == a->sister) set_orphan_rear(j);
-						if (j->parent && j->is_sink && a->r_cap > 0) set_active(j);
+						if (nodes[j].parent == arcs[a].sister) set_orphan_rear(j);
+						if (nodes[j].parent != INDEX_NONE && nodes[j].is_sink && arcs[a].r_cap > 0) set_active(j);
 					}
 				}
 				add_to_changed_list(i);
@@ -203,24 +205,24 @@ template <typename captype, typename tcaptype, typename flowtype>
 		}
 		else
 		{
-			if (!i->parent || !i->is_sink)
+			if (nodes[i].parent == INDEX_NONE || !nodes[i].is_sink)
 			{
-				i->is_sink = 1;
-				for (a=i->first; a; a=a->next)
+				nodes[i].is_sink = 1;
+				for (a=nodes[i].first; a!=INDEX_NONE; a=arcs[a].next)
 				{
-					j = a->head;
-					if (!j->is_marked)
+					j = arcs[a].head;
+					if (!nodes[j].is_marked)
 					{
-						if (j->parent == a->sister) set_orphan_rear(j);
-						if (j->parent && !j->is_sink && a->sister->r_cap > 0) set_active(j);
+						if (nodes[j].parent == arcs[a].sister) set_orphan_rear(j);
+						if (nodes[j].parent != INDEX_NONE && !nodes[j].is_sink && arcs[arcs[a].sister].r_cap > 0) set_active(j);
 					}
 				}
 				add_to_changed_list(i);
 			}
 		}
-		i->parent = TERMINAL;
-		i -> TS = TIME;
-		i -> DIST = 1;
+		nodes[i].parent = INDEX_TERMINAL;
+		nodes[i].TS = TIME;
+		nodes[i].DIST = 1;
 	}
 
 	//test_consistency();
@@ -232,76 +234,76 @@ template <typename captype, typename tcaptype, typename flowtype>
 		i = np -> ptr;
 		nodeptr_block -> Delete(np);
 		if (!orphan_first) orphan_last = NULL;
-		if (i->is_sink) process_sink_orphan(i);
-		else            process_source_orphan(i);
+		if (nodes[i].is_sink) process_sink_orphan(i);
+		else                  process_source_orphan(i);
 	}
 	/* adoption end */
 
 	//test_consistency();
 }
 
-template <typename captype, typename tcaptype, typename flowtype> 
-	void Graph<captype,tcaptype,flowtype>::augment(arc *middle_arc)
+template <typename captype, typename tcaptype, typename flowtype>
+	void Graph<captype,tcaptype,flowtype>::augment(int middle_arc)
 {
-	node *i;
-	arc *a;
+	int i;
+	int a;
 	tcaptype bottleneck;
 
 
 	/* 1. Finding bottleneck capacity */
 	/* 1a - the source tree */
-	bottleneck = middle_arc -> r_cap;
-	for (i=middle_arc->sister->head; ; i=a->head)
+	bottleneck = arcs[middle_arc].r_cap;
+	for (i=arcs[arcs[middle_arc].sister].head; ; i=arcs[a].head)
 	{
-		a = i -> parent;
-		if (a == TERMINAL) break;
-		if (bottleneck > a->sister->r_cap) bottleneck = a -> sister -> r_cap;
+		a = nodes[i].parent;
+		if (a == INDEX_TERMINAL) break;
+		if (bottleneck > arcs[arcs[a].sister].r_cap) bottleneck = arcs[arcs[a].sister].r_cap;
 	}
-	if (bottleneck > i->tr_cap) bottleneck = i -> tr_cap;
+	if (bottleneck > nodes[i].tr_cap) bottleneck = nodes[i].tr_cap;
 	/* 1b - the sink tree */
-	for (i=middle_arc->head; ; i=a->head)
+	for (i=arcs[middle_arc].head; ; i=arcs[a].head)
 	{
-		a = i -> parent;
-		if (a == TERMINAL) break;
-		if (bottleneck > a->r_cap) bottleneck = a -> r_cap;
+		a = nodes[i].parent;
+		if (a == INDEX_TERMINAL) break;
+		if (bottleneck > arcs[a].r_cap) bottleneck = arcs[a].r_cap;
 	}
-	if (bottleneck > - i->tr_cap) bottleneck = - i -> tr_cap;
+	if (bottleneck > - nodes[i].tr_cap) bottleneck = - nodes[i].tr_cap;
 
 
 	/* 2. Augmenting */
 	/* 2a - the source tree */
-	middle_arc -> sister -> r_cap += bottleneck;
-	middle_arc -> r_cap -= bottleneck;
-	for (i=middle_arc->sister->head; ; i=a->head)
+	arcs[arcs[middle_arc].sister].r_cap += bottleneck;
+	arcs[middle_arc].r_cap -= bottleneck;
+	for (i=arcs[arcs[middle_arc].sister].head; ; i=arcs[a].head)
 	{
-		a = i -> parent;
-		if (a == TERMINAL) break;
-		a -> r_cap += bottleneck;
-		a -> sister -> r_cap -= bottleneck;
-		if (!a->sister->r_cap)
+		a = nodes[i].parent;
+		if (a == INDEX_TERMINAL) break;
+		arcs[a].r_cap += bottleneck;
+		arcs[arcs[a].sister].r_cap -= bottleneck;
+		if (!arcs[arcs[a].sister].r_cap)
 		{
 			set_orphan_front(i); // add i to the beginning of the adoption list
 		}
 	}
-	i -> tr_cap -= bottleneck;
-	if (!i->tr_cap)
+	nodes[i].tr_cap -= bottleneck;
+	if (!nodes[i].tr_cap)
 	{
 		set_orphan_front(i); // add i to the beginning of the adoption list
 	}
 	/* 2b - the sink tree */
-	for (i=middle_arc->head; ; i=a->head)
+	for (i=arcs[middle_arc].head; ; i=arcs[a].head)
 	{
-		a = i -> parent;
-		if (a == TERMINAL) break;
-		a -> sister -> r_cap += bottleneck;
-		a -> r_cap -= bottleneck;
-		if (!a->r_cap)
+		a = nodes[i].parent;
+		if (a == INDEX_TERMINAL) break;
+		arcs[arcs[a].sister].r_cap += bottleneck;
+		arcs[a].r_cap -= bottleneck;
+		if (!arcs[a].r_cap)
 		{
 			set_orphan_front(i); // add i to the beginning of the adoption list
 		}
 	}
-	i -> tr_cap += bottleneck;
-	if (!i->tr_cap)
+	nodes[i].tr_cap += bottleneck;
+	if (!nodes[i].tr_cap)
 	{
 		set_orphan_front(i); // add i to the beginning of the adoption list
 	}
@@ -312,39 +314,39 @@ template <typename captype, typename tcaptype, typename flowtype>
 
 /***********************************************************************/
 
-template <typename captype, typename tcaptype, typename flowtype> 
-	void Graph<captype,tcaptype,flowtype>::process_source_orphan(node *i)
+template <typename captype, typename tcaptype, typename flowtype>
+	void Graph<captype,tcaptype,flowtype>::process_source_orphan(int i)
 {
-	node *j;
-	arc *a0, *a0_min = NULL, *a;
+	int j;
+	int a0, a0_min = INDEX_NONE, a;
 	int d, d_min = INFINITE_D;
 
 	/* trying to find a new parent */
-	for (a0=i->first; a0; a0=a0->next)
-	if (a0->sister->r_cap)
+	for (a0=nodes[i].first; a0!=INDEX_NONE; a0=arcs[a0].next)
+	if (arcs[arcs[a0].sister].r_cap)
 	{
-		j = a0 -> head;
-		if (!j->is_sink && (a=j->parent))
+		j = arcs[a0].head;
+		if (!nodes[j].is_sink && (a=nodes[j].parent) != INDEX_NONE)
 		{
 			/* checking the origin of j */
 			d = 0;
 			while ( 1 )
 			{
-				if (j->TS == TIME)
+				if (nodes[j].TS == TIME)
 				{
-					d += j -> DIST;
+					d += nodes[j].DIST;
 					break;
 				}
-				a = j -> parent;
+				a = nodes[j].parent;
 				d ++;
-				if (a==TERMINAL)
+				if (a==INDEX_TERMINAL)
 				{
-					j -> TS = TIME;
-					j -> DIST = 1;
+					nodes[j].TS = TIME;
+					nodes[j].DIST = 1;
 					break;
 				}
-				if (a==ORPHAN) { d = INFINITE_D; break; }
-				j = a -> head;
+				if (a==INDEX_ORPHAN) { d = INFINITE_D; break; }
+				j = arcs[a].head;
 			}
 			if (d<INFINITE_D) /* j originates from the source - done */
 			{
@@ -354,19 +356,19 @@ template <typename captype, typename tcaptype, typename flowtype>
 					d_min = d;
 				}
 				/* set marks along the path */
-				for (j=a0->head; j->TS!=TIME; j=j->parent->head)
+				for (j=arcs[a0].head; nodes[j].TS!=TIME; j=arcs[nodes[j].parent].head)
 				{
-					j -> TS = TIME;
-					j -> DIST = d --;
+					nodes[j].TS = TIME;
+					nodes[j].DIST = d --;
 				}
 			}
 		}
 	}
 
-	if (i->parent = a0_min)
+	if ((nodes[i].parent = a0_min) != INDEX_NONE)
 	{
-		i -> TS = TIME;
-		i -> DIST = d_min + 1;
+		nodes[i].TS = TIME;
+		nodes[i].DIST = d_min + 1;
 	}
 	else
 	{
@@ -374,13 +376,13 @@ template <typename captype, typename tcaptype, typename flowtype>
 		add_to_changed_list(i);
 
 		/* process neighbors */
-		for (a0=i->first; a0; a0=a0->next)
+		for (a0=nodes[i].first; a0!=INDEX_NONE; a0=arcs[a0].next)
 		{
-			j = a0 -> head;
-			if (!j->is_sink && (a=j->parent))
+			j = arcs[a0].head;
+			if (!nodes[j].is_sink && (a=nodes[j].parent) != INDEX_NONE)
 			{
-				if (a0->sister->r_cap) set_active(j);
-				if (a!=TERMINAL && a!=ORPHAN && a->head==i)
+				if (arcs[arcs[a0].sister].r_cap) set_active(j);
+				if (a!=INDEX_TERMINAL && a!=INDEX_ORPHAN && arcs[a].head==i)
 				{
 					set_orphan_rear(j); // add j to the end of the adoption list
 				}
@@ -389,39 +391,39 @@ template <typename captype, typename tcaptype, typename flowtype>
 	}
 }
 
-template <typename captype, typename tcaptype, typename flowtype> 
-	void Graph<captype,tcaptype,flowtype>::process_sink_orphan(node *i)
+template <typename captype, typename tcaptype, typename flowtype>
+	void Graph<captype,tcaptype,flowtype>::process_sink_orphan(int i)
 {
-	node *j;
-	arc *a0, *a0_min = NULL, *a;
+	int j;
+	int a0, a0_min = INDEX_NONE, a;
 	int d, d_min = INFINITE_D;
 
 	/* trying to find a new parent */
-	for (a0=i->first; a0; a0=a0->next)
-	if (a0->r_cap)
+	for (a0=nodes[i].first; a0!=INDEX_NONE; a0=arcs[a0].next)
+	if (arcs[a0].r_cap)
 	{
-		j = a0 -> head;
-		if (j->is_sink && (a=j->parent))
+		j = arcs[a0].head;
+		if (nodes[j].is_sink && (a=nodes[j].parent) != INDEX_NONE)
 		{
 			/* checking the origin of j */
 			d = 0;
 			while ( 1 )
 			{
-				if (j->TS == TIME)
+				if (nodes[j].TS == TIME)
 				{
-					d += j -> DIST;
+					d += nodes[j].DIST;
 					break;
 				}
-				a = j -> parent;
+				a = nodes[j].parent;
 				d ++;
-				if (a==TERMINAL)
+				if (a==INDEX_TERMINAL)
 				{
-					j -> TS = TIME;
-					j -> DIST = 1;
+					nodes[j].TS = TIME;
+					nodes[j].DIST = 1;
 					break;
 				}
-				if (a==ORPHAN) { d = INFINITE_D; break; }
-				j = a -> head;
+				if (a==INDEX_ORPHAN) { d = INFINITE_D; break; }
+				j = arcs[a].head;
 			}
 			if (d<INFINITE_D) /* j originates from the sink - done */
 			{
@@ -431,19 +433,19 @@ template <typename captype, typename tcaptype, typename flowtype>
 					d_min = d;
 				}
 				/* set marks along the path */
-				for (j=a0->head; j->TS!=TIME; j=j->parent->head)
+				for (j=arcs[a0].head; nodes[j].TS!=TIME; j=arcs[nodes[j].parent].head)
 				{
-					j -> TS = TIME;
-					j -> DIST = d --;
+					nodes[j].TS = TIME;
+					nodes[j].DIST = d --;
 				}
 			}
 		}
 	}
 
-	if (i->parent = a0_min)
+	if ((nodes[i].parent = a0_min) != INDEX_NONE)
 	{
-		i -> TS = TIME;
-		i -> DIST = d_min + 1;
+		nodes[i].TS = TIME;
+		nodes[i].DIST = d_min + 1;
 	}
 	else
 	{
@@ -451,13 +453,13 @@ template <typename captype, typename tcaptype, typename flowtype>
 		add_to_changed_list(i);
 
 		/* process neighbors */
-		for (a0=i->first; a0; a0=a0->next)
+		for (a0=nodes[i].first; a0!=INDEX_NONE; a0=arcs[a0].next)
 		{
-			j = a0 -> head;
-			if (j->is_sink && (a=j->parent))
+			j = arcs[a0].head;
+			if (nodes[j].is_sink && (a=nodes[j].parent) != INDEX_NONE)
 			{
-				if (a0->r_cap) set_active(j);
-				if (a!=TERMINAL && a!=ORPHAN && a->head==i)
+				if (arcs[a0].r_cap) set_active(j);
+				if (a!=INDEX_TERMINAL && a!=INDEX_ORPHAN && arcs[a].head==i)
 				{
 					set_orphan_rear(j); // add j to the end of the adoption list
 				}
@@ -468,11 +470,11 @@ template <typename captype, typename tcaptype, typename flowtype>
 
 /***********************************************************************/
 
-template <typename captype, typename tcaptype, typename flowtype> 
+template <typename captype, typename tcaptype, typename flowtype>
 	flowtype Graph<captype,tcaptype,flowtype>::maxflow(bool reuse_trees, Block<node_id>* _changed_list)
 {
-	node *i, *j, *current_node = NULL;
-	arc *a;
+	int i, j, current_node = INDEX_NONE;
+	int a;
 	nodeptr *np, *np_next;
 
 	if (!nodeptr_block)
@@ -492,77 +494,77 @@ template <typename captype, typename tcaptype, typename flowtype>
 	{
 		// test_consistency(current_node);
 
-		if ((i=current_node))
+		if ((i=current_node) != INDEX_NONE)
 		{
-			i -> next = NULL; /* remove active flag */
-			if (!i->parent) i = NULL;
+			nodes[i].next = INDEX_NONE; /* remove active flag */
+			if (nodes[i].parent == INDEX_NONE) i = INDEX_NONE;
 		}
-		if (!i)
+		if (i == INDEX_NONE)
 		{
-			if (!(i = next_active())) break;
+			if ((i = next_active()) == INDEX_NONE) break;
 		}
 
 		/* growth */
-		if (!i->is_sink)
+		if (!nodes[i].is_sink)
 		{
 			/* grow source tree */
-			for (a=i->first; a; a=a->next)
-			if (a->r_cap)
+			for (a=nodes[i].first; a!=INDEX_NONE; a=arcs[a].next)
+			if (arcs[a].r_cap)
 			{
-				j = a -> head;
-				if (!j->parent)
+				j = arcs[a].head;
+				if (nodes[j].parent == INDEX_NONE)
 				{
-					j -> is_sink = 0;
-					j -> parent = a -> sister;
-					j -> TS = i -> TS;
-					j -> DIST = i -> DIST + 1;
+					nodes[j].is_sink = 0;
+					nodes[j].parent = arcs[a].sister;
+					nodes[j].TS = nodes[i].TS;
+					nodes[j].DIST = nodes[i].DIST + 1;
 					set_active(j);
 					add_to_changed_list(j);
 				}
-				else if (j->is_sink) break;
-				else if (j->TS <= i->TS &&
-				         j->DIST > i->DIST)
+				else if (nodes[j].is_sink) break;
+				else if (nodes[j].TS <= nodes[i].TS &&
+				         nodes[j].DIST > nodes[i].DIST)
 				{
 					/* heuristic - trying to make the distance from j to the source shorter */
-					j -> parent = a -> sister;
-					j -> TS = i -> TS;
-					j -> DIST = i -> DIST + 1;
+					nodes[j].parent = arcs[a].sister;
+					nodes[j].TS = nodes[i].TS;
+					nodes[j].DIST = nodes[i].DIST + 1;
 				}
 			}
 		}
 		else
 		{
 			/* grow sink tree */
-			for (a=i->first; a; a=a->next)
-			if (a->sister->r_cap)
+			for (a=nodes[i].first; a!=INDEX_NONE; a=arcs[a].next)
+			if (arcs[arcs[a].sister].r_cap)
 			{
-				j = a -> head;
-				if (!j->parent)
+				j = arcs[a].head;
+				if (nodes[j].parent == INDEX_NONE)
 				{
-					j -> is_sink = 1;
-					j -> parent = a -> sister;
-					j -> TS = i -> TS;
-					j -> DIST = i -> DIST + 1;
+					nodes[j].is_sink = 1;
+					nodes[j].parent = arcs[a].sister;
+					nodes[j].TS = nodes[i].TS;
+					nodes[j].DIST = nodes[i].DIST + 1;
 					set_active(j);
 					add_to_changed_list(j);
 				}
-				else if (!j->is_sink) { a = a -> sister; break; }
-				else if (j->TS <= i->TS &&
-				         j->DIST > i->DIST)
+				else if (!nodes[j].is_sink) { a = arcs[a].sister; break; }
+				else if (nodes[j].TS <= nodes[i].TS &&
+				         nodes[j].DIST > nodes[i].DIST)
 				{
 					/* heuristic - trying to make the distance from j to the sink shorter */
-					j -> parent = a -> sister;
-					j -> TS = i -> TS;
-					j -> DIST = i -> DIST + 1;
+					nodes[j].parent = arcs[a].sister;
+					nodes[j].TS = nodes[i].TS;
+					nodes[j].DIST = nodes[i].DIST + 1;
 				}
 			}
 		}
 
 		TIME ++;
 
-		if (a)
+		if (a != INDEX_NONE)
 		{
-			i -> next = i; /* set active flag */
+			nodes[i].next = i; /* set active flag */
 			current_node = i;
 
 			/* augmentation */
@@ -581,22 +583,22 @@ template <typename captype, typename tcaptype, typename flowtype>
 					i = np -> ptr;
 					nodeptr_block -> Delete(np);
 					if (!orphan_first) orphan_last = NULL;
-					if (i->is_sink) process_sink_orphan(i);
-					else            process_source_orphan(i);
+					if (nodes[i].is_sink) process_sink_orphan(i);
+					else                  process_source_orphan(i);
 				}
 
 				orphan_first = np_next;
 			}
 			/* adoption end */
 		}
-		else current_node = NULL;
+		else current_node = INDEX_NONE;
 	}
 	// test_consistency();
 
 	if (!reuse_trees || (maxflow_iteration % 64) == 0)
 	{
-		delete nodeptr_block; 
-		nodeptr_block = NULL; 
+		delete nodeptr_block;
+		nodeptr_block = NULL;
 	}
 
 	maxflow_iteration ++;
@@ -606,27 +608,27 @@ template <typename captype, typename tcaptype, typename flowtype>
 /***********************************************************************/
 
 
-template <typename captype, typename tcaptype, typename flowtype> 
-	void Graph<captype,tcaptype,flowtype>::test_consistency(node* current_node)
+template <typename captype, typename tcaptype, typename flowtype>
+	void Graph<captype,tcaptype,flowtype>::test_consistency(int current_node)
 {
-	node *i;
-	arc *a;
+	int i;
+	int a;
 	int r;
 	int num1 = 0, num2 = 0;
 
-	// test whether all nodes i with i->next!=NULL are indeed in the queue
-	for (i=nodes; i<node_last; i++)
+	// test whether all nodes i with i->next!=INDEX_NONE are indeed in the queue
+	for (i=0; i<node_num; i++)
 	{
-		if (i->next || i==current_node) num1 ++;
+		if (nodes[i].next != INDEX_NONE || i==current_node) num1 ++;
 	}
 	for (r=0; r<3; r++)
 	{
 		i = (r == 2) ? current_node : queue_first[r];
-		if (i)
-		for ( ; ; i=i->next)
+		if (i != INDEX_NONE)
+		for ( ; ; i=nodes[i].next)
 		{
 			num2 ++;
-			if (i->next == i)
+			if (nodes[i].next == i)
 			{
 				if (r<2) assert(i == queue_last[r]);
 				else     assert(i == current_node);
@@ -636,98 +638,82 @@ template <typename captype, typename tcaptype, typename flowtype>
 	}
 	assert(num1 == num2);
 
-	for (i=nodes; i<node_last; i++)
+	for (i=0; i<node_num; i++)
 	{
 		// test whether all edges in seach trees are non-saturated
-		if (i->parent == NULL) {}
-		else if (i->parent == ORPHAN) {}
-		else if (i->parent == TERMINAL)
+		if (nodes[i].parent == INDEX_NONE) {}
+		else if (nodes[i].parent == INDEX_ORPHAN) {}
+		else if (nodes[i].parent == INDEX_TERMINAL)
 		{
-			if (!i->is_sink) assert(i->tr_cap > 0);
-			else             assert(i->tr_cap < 0);
+			if (!nodes[i].is_sink) assert(nodes[i].tr_cap > 0);
+			else                   assert(nodes[i].tr_cap < 0);
 		}
 		else
 		{
-			if (!i->is_sink) assert (i->parent->sister->r_cap > 0);
-			else             assert (i->parent->r_cap > 0);
+			if (!nodes[i].is_sink) assert (arcs[arcs[nodes[i].parent].sister].r_cap > 0);
+			else                   assert (arcs[nodes[i].parent].r_cap > 0);
 		}
 		// test whether passive nodes in search trees have neighbors in
 		// a different tree through non-saturated edges
-		if (i->parent && !i->next)
+		if (nodes[i].parent != INDEX_NONE && nodes[i].next == INDEX_NONE)
 		{
-			if (!i->is_sink)
+			if (!nodes[i].is_sink)
 			{
-				assert(i->tr_cap >= 0);
-				for (a=i->first; a; a=a->next)
+				assert(nodes[i].tr_cap >= 0);
+				for (a=nodes[i].first; a!=INDEX_NONE; a=arcs[a].next)
 				{
-					if (a->r_cap > 0) assert(a->head->parent && !a->head->is_sink);
+					if (arcs[a].r_cap > 0) assert(nodes[arcs[a].head].parent != INDEX_NONE && !nodes[arcs[a].head].is_sink);
 				}
 			}
 			else
 			{
-				assert(i->tr_cap <= 0);
-				for (a=i->first; a; a=a->next)
+				assert(nodes[i].tr_cap <= 0);
+				for (a=nodes[i].first; a!=INDEX_NONE; a=arcs[a].next)
 				{
-					if (a->sister->r_cap > 0) assert(a->head->parent && a->head->is_sink);
+					if (arcs[arcs[a].sister].r_cap > 0) assert(nodes[arcs[a].head].parent != INDEX_NONE && nodes[arcs[a].head].is_sink);
 				}
 			}
 		}
 		// test marking invariants
-		if (i->parent && i->parent!=ORPHAN && i->parent!=TERMINAL)
+		if (nodes[i].parent != INDEX_NONE && nodes[i].parent != INDEX_ORPHAN && nodes[i].parent != INDEX_TERMINAL)
 		{
-			assert(i->TS <= i->parent->head->TS);
-			if (i->TS == i->parent->head->TS) assert(i->DIST > i->parent->head->DIST);
+			assert(nodes[i].TS <= nodes[arcs[nodes[i].parent].head].TS);
+			if (nodes[i].TS == nodes[arcs[nodes[i].parent].head].TS) assert(nodes[i].DIST > nodes[arcs[nodes[i].parent].head].DIST);
 		}
 	}
 }
 
-template <typename captype, typename tcaptype, typename flowtype> 
+template <typename captype, typename tcaptype, typename flowtype>
 	void Graph<captype,tcaptype,flowtype>::Copy(Graph<captype, tcaptype, flowtype>* g0)
 {
-	node* i;
-	arc* a;
-
 	reset();
 
-	if (node_max < nodes + g0->node_num)
+	if (node_num_max < g0->node_num)
 	{
 		free(nodes);
-		nodes = node_last = (node*) malloc(g0->node_num*sizeof(node));
-		node_max = nodes + g0->node_num;
+		nodes = (node*) malloc(g0->node_num*sizeof(node));
+		node_num_max = g0->node_num;
 	}
-	if (arc_max < arcs + (g0->arc_last - g0->arcs))
+	if (arc_num_max < g0->arc_num)
 	{
 		free(arcs);
-		arcs = arc_last = (arc*) malloc((g0->arc_last - g0->arcs)*sizeof(arc));
-		arc_max = arcs + (g0->arc_last - g0->arcs);
+		arcs = (arc*) malloc(g0->arc_num*sizeof(arc));
+		arc_num_max = g0->arc_num;
 	}
 
 	node_num = g0->node_num;
-	node_last = nodes + node_num;
 	memcpy(nodes, g0->nodes, node_num*sizeof(node));
-	for (i=nodes; i<node_last; i++)
-	{
-		if (i->first) i->first  = (arc*)((char*)arcs + (((char*)i->first)  - ((char*)g0->arcs)));
-		if (i->parent && i->parent!=TERMINAL && i->parent!=ORPHAN) i->parent = (arc*)((char*)arcs + (((char*)i->parent) - ((char*)g0->arcs)));
-		if (i->next) i->next   = (node*)((char*)nodes + (((char*)i->next) - ((char*)g0->nodes)));
-	}
 
-	arc_last = arcs + (g0->arc_last - g0->arcs);
-	memcpy(arcs, g0->arcs, (g0->arc_last - g0->arcs)*sizeof(arc));
-	for (a=arcs; a<arc_last; a++)
-	{
-		a->head    = (node*)((char*)nodes + (((char*)a->head)  - ((char*)g0->nodes)));
-		if (a->next) a->next = (arc*)((char*)arcs + (((char*)a->next)    - ((char*)g0->arcs)));
-		a->sister  = (arc*)((char*)arcs + (((char*)a->sister)  - ((char*)g0->arcs)));
-	}
+	arc_num = g0->arc_num;
+	memcpy(arcs, g0->arcs, arc_num*sizeof(arc));
 
 	error_function = g0->error_function;
 	flow = g0->flow;
 	maxflow_iteration = g0->maxflow_iteration;
 
-	queue_first[0] = (g0->queue_first[0]==NULL) ? NULL : (node*)((char*)nodes + (((char*)g0->queue_first[0]) - ((char*)g0->nodes)));
-	queue_first[1] = (g0->queue_first[1]==NULL) ? NULL : (node*)((char*)nodes + (((char*)g0->queue_first[1]) - ((char*)g0->nodes)));
-	queue_last[0] = (g0->queue_last[0]==NULL) ? NULL : (node*)((char*)nodes + (((char*)g0->queue_last[0]) - ((char*)g0->nodes)));
-	queue_last[1] = (g0->queue_last[1]==NULL) ? NULL : (node*)((char*)nodes + (((char*)g0->queue_last[1]) - ((char*)g0->nodes)));
+	queue_first[0] = g0->queue_first[0];
+	queue_first[1] = g0->queue_first[1];
+	queue_last[0] = g0->queue_last[0];
+	queue_last[1] = g0->queue_last[1];
 	TIME = g0->TIME;
 }

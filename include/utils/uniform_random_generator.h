@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <vector>
 #include <unordered_set> 
+#include <unordered_map>
 
 #include "macros.h"
 
@@ -125,16 +126,29 @@ private:
     // Choose k values from [0, N) without replacement into sample (unordered)
     FORCE_INLINE void choose_without_replacement(_Type* sample, uint64_t k, uint64_t N) {
         if (k * 8ull <= N) { // Floyd for sparse case
-            std::unordered_set<uint64_t> S;
-            // Reserve more space to avoid rehashing: k * 3 ensures load factor stays below 0.66
-            S.reserve((size_t)k * 3);
+            // One reusable set per k, so this per-iteration call does not allocate.
+            // The output order is the unordered_set's iteration order, which for a
+            // given insertion sequence depends only on the bucket count; clear()
+            // preserves the buckets, and caching per k keeps the bucket count equal
+            // to that of a fresh set with reserve(k * 3) -- so the produced samples
+            // are identical to the previous fresh-set version.
+            static thread_local std::unordered_map<uint64_t, std::unordered_set<uint64_t>> setsByK;
+            auto [it, isNew] = setsByK.try_emplace(k);
+            std::unordered_set<uint64_t>& S = it->second;
+            if (isNew)
+                // Reserve more space to avoid rehashing: k * 3 ensures load factor stays below 0.66
+                S.reserve((size_t)k * 3);
+            else
+                S.clear();
             for (uint64_t j = N - k; j < N; ++j) {
                 uint64_t t = uniform_u64_closed(engine_, 0, j);
                 if (!S.insert(t).second) S.insert(j);
             }
             size_t i = 0; for (auto v : S) sample[i++] = (_Type)v;
         } else { // partial Fisher–Yates for dense case
-            std::vector<uint64_t> a(N);
+            // Reusable scratch; fully rewritten below.
+            static thread_local std::vector<uint64_t> a;
+            a.resize(N);
             for (uint64_t i = 0; i < N; ++i) a[i] = i;
             for (uint64_t i = 0; i < k; ++i) {
                 uint64_t j = i + uniform_u64_closed(engine_, 0, N - 1 - i);

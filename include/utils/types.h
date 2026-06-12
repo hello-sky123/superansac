@@ -36,3 +36,8 @@
 #include <Eigen/Core>
 
 using DataMatrix = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+
+// Model descriptors are at most 4x4 (H/F/E: 3x3, absolute pose: 3x4, rigid: 4x4).
+// A fixed-capacity matrix keeps the dynamic-size interface but stores the
+// coefficients inline, so constructing/copying models never touches the heap.
+using ModelMatrix = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor, 4, 4>;

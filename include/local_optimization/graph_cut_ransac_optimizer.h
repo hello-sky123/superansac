@@ -142,6 +142,16 @@ namespace superansac
 				// The inlier-outlier threshold
 				const double &kThreshold = kScoring_->getThreshold();
 
+				// The graph used by the graph-cut labeling. Allocated once and
+				// reset() in every labeling call, so the node/arc arrays are reused
+				// across the (up to) graphCutNumber labelings instead of being
+				// malloc'd/freed each time. reset() restores a freshly-constructed
+				// state, so the resulting labelings are identical.
+				Energy<double, double, double> problemGraph(
+					static_cast<int>(kData_.rows()), // The number of vertices
+					static_cast<int>(kNeighborNumber), // The number of edges
+					NULL);
+
 				// The inner RANSAC loop
 				for (size_t iteration = 0; iteration < graphCutNumber; ++iteration)
 				{
@@ -154,11 +164,12 @@ namespace superansac
 					currentInliers.clear();
 					labeling(
 						kData_, // The input points
-						kNeighborNumber, // The number of neighbors, i.e. the edge number of the graph 
+						kNeighborNumber, // The number of neighbors, i.e. the edge number of the graph
 						estimatedModel_, // The best model parameters
 						kEstimator_, // The model estimator
 						spatialCoherenceWeight, // The weight of the spatial coherence term
 						kThreshold, // The inlier-outlier threshold
+						&problemGraph, // The reusable problem graph
 						currentInliers); // The selected inliers
 
 					// Calculate the current sample size
@@ -258,39 +269,37 @@ namespace superansac
 				const estimator::Estimator *kEstimator_, // The estimator used for the model estimation
 				const double kLambda_, // The weight for the spatial coherence term
 				const double kThreshold_, // The kThreshold_ for the inlier-outlier decision
+				Energy<double, double, double> *problemGraph, // The (reused) problem graph
 				std::vector<size_t> &inliers_) const // The resulting inlier set
 			{
 				// The number of points in the data set
 				const int &pointNumber = kData_.rows();
 
-				// Initializing the problem graph for the graph-cut algorithm.
-				Energy<double, double, double> *problemGraph =
-					new Energy<double, double, double>(pointNumber, // The number of vertices
-						kNeighborNumber_, // The number of edges
-						NULL);
+				// Restore the freshly-constructed graph state (reuses the node/arc arrays)
+				problemGraph->reset();
 
 				// Add a vertex for each point
 				for (auto i = 0; i < pointNumber; ++i)
 					problemGraph->add_node();
 
 				// The distance and energy for each point
-				std::vector<double> distancePerThreshold;
-				distancePerThreshold.reserve(pointNumber);
+				std::vector<double> distancePerThreshold(pointNumber);
 				double tmpSquaredDistance,
 					tmpEnergy;
 				const double squaredTruncatedThreshold = kThreshold_ * kThreshold_;
 				const double oneMinusLambda = 1.0 - kLambda_;
 				const double invSquaredTruncatedThreshold = 1.0 / squaredTruncatedThreshold;
 
+				// Compute all point-to-model squared residuals with one batched call
+				kEstimator_->squaredResiduals(kData_, kModel_, 0, pointNumber, distancePerThreshold.data());
+
 				// Estimate the vertex capacities
 				for (size_t i = 0; i < pointNumber; ++i)
 				{
-					// Calculating the point-to-model squared residual
-					tmpSquaredDistance = kEstimator_->squaredResidual(kData_.row(i),
-						kModel_);
+					tmpSquaredDistance = distancePerThreshold[i];
 					double distRatio = tmpSquaredDistance * invSquaredTruncatedThreshold;
 					distRatio = std::min(std::max(distRatio, 0.0), 1.0);
-					distancePerThreshold.emplace_back(distRatio);
+					distancePerThreshold[i] = distRatio;
 					// Calculating the implied unary energy
 					tmpEnergy = 1.0 - distRatio;
 
@@ -301,8 +310,11 @@ namespace superansac
 						problemGraph->add_term1(i, 0, oneMinusLambda * (1 - tmpEnergy));
 				}
 
-				std::vector<std::vector<int>> usedEdges(pointNumber, std::vector<int>(pointNumber, 0));
-
+				// Deduplicate undirected edges with an O(E) hash set instead of an
+				// O(N^2) dense matrix (the previous std::vector<std::vector<int>> of
+				// size pointNumber x pointNumber allocated/zeroed hundreds of MB on every
+				// labeling() call). The dedup decision and edge-insertion order are
+				// preserved exactly, so the resulting graph (and labeling) is identical.
 				if (kLambda_ > 0)
 				{
 					double energy1, energy2, energySum;
@@ -317,16 +329,15 @@ namespace superansac
 						const auto &neighbors = neighborhoodGraph->getNeighbors(pointIdx);
 						for (const size_t &actualNeighborIdx : neighbors)
 						{
-							// Skip self-loops and already processed edges
-							if (actualNeighborIdx == pointIdx)
+							// Add every undirected edge exactly once by only processing it
+							// at its lower-indexed endpoint. The grid neighborhood is
+							// symmetric (getNeighbors returns the full cell, including the
+							// point itself), so this skips self-loops and the mirror
+							// direction and yields an identical edge set & insertion order
+							// to the previous O(N^2) dense-matrix dedup -- with no extra
+							// storage. (Assumes a symmetric neighborhood graph, which Grid is.)
+							if (actualNeighborIdx <= static_cast<size_t>(pointIdx))
 								continue;
-
-							if (usedEdges[actualNeighborIdx][pointIdx] == 1 ||
-								usedEdges[pointIdx][actualNeighborIdx] == 1)
-								continue;
-
-							usedEdges[actualNeighborIdx][pointIdx] = 1;
-							usedEdges[pointIdx][actualNeighborIdx] = 1;
 
 							energy2 = distancePerThreshold[actualNeighborIdx]; // Truncated quadratic cost
 							energySum = energy1 + energy2;
@@ -351,14 +362,11 @@ namespace superansac
 				problemGraph->minimize();
 
 				// Select the inliers, i.e., the points labeled as SINK.
-				inliers_.reserve(pointNumber); 
+				inliers_.reserve(pointNumber);
 				for (auto pointIdx = 0; pointIdx < pointNumber; ++pointIdx)
 					if (problemGraph->what_segment(pointIdx) == Graph<double, double, double>::SINK)
 						inliers_.emplace_back(pointIdx);
-
-				// Clean the memory
-				delete problemGraph;
-			} 
+			}
 		};
 	}
 }  // namespace gcransac

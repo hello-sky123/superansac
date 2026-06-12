@@ -185,7 +185,7 @@ class ACRANSACScoring : public AbstractScoring
             {
                 // Calculate the point-to-model residual
                 squaredResidual =
-                    kEstimator_->squaredResidual(kData_.row(pointIdx),
+                    kEstimator_->squaredResidual(kData_.row(pointIdx).data(),
                         kModel_);
 
                 // If the residual is smaller than the threshold, store it as an inlier and

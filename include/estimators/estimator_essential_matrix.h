@@ -121,15 +121,15 @@ namespace superansac
 				return true;
 			}
 
-			FORCE_INLINE double squaredResidual(const DataMatrix& point_,
+			FORCE_INLINE double squaredResidual(const double* point_,
 				const models::Model& model_) const override
 			{
 				return squaredResidual(point_, model_.getData());
 			}
 
 			FORCE_INLINE double squaredResidual(
-				const DataMatrix& kPoint_,
-				const Eigen::MatrixXd& kDescriptor_) const
+				const double* kPoint_,
+				const ModelMatrix& kDescriptor_) const
 			{
 				const double kSquaredResidual = squaredSampsonDistance(kPoint_, kDescriptor_);
 				return kSquaredResidual;
@@ -137,14 +137,14 @@ namespace superansac
 
 			// The symmetric epipolar distance between a point correspondence and an essential matrix
 			FORCE_INLINE double squaredSymmetricEpipolarDistance(
-				const DataMatrix& kPoint_,
-				const Eigen::MatrixXd& kDescriptor_) const
+				const double* kPoint_,
+				const ModelMatrix& kDescriptor_) const
 			{
 				// Use const references to avoid copying
-				const double &x1 = kPoint_(0),
-							&y1 = kPoint_(1),
-							&x2 = kPoint_(2),
-							&y2 = kPoint_(3);
+				const double &x1 = kPoint_[0],
+							&y1 = kPoint_[1],
+							&x2 = kPoint_[2],
+							&y2 = kPoint_[3];
 
 				const double 
 					&e11 = kDescriptor_(0, 0),
@@ -168,15 +168,15 @@ namespace superansac
 
 			// The sampson distance between a point_ correspondence and an essential matrix
 			FORCE_INLINE double squaredSampsonDistance(
-				const DataMatrix& kPoint_,
-				const Eigen::MatrixXd& kDescriptor_) const
+				const double* kPoint_,
+				const ModelMatrix& kDescriptor_) const
 			{
 				const double E0_0 = kDescriptor_(0, 0), E0_1 = kDescriptor_(0, 1), E0_2 = kDescriptor_(0, 2);
 				const double E1_0 = kDescriptor_(1, 0), E1_1 = kDescriptor_(1, 1), E1_2 = kDescriptor_(1, 2);
 				const double E2_0 = kDescriptor_(2, 0), E2_1 = kDescriptor_(2, 1), E2_2 = kDescriptor_(2, 2);
 
-				const double x1_0 = kPoint_(0), x1_1 = kPoint_(1);
-				const double x2_0 = kPoint_(2), x2_1 = kPoint_(3);
+				const double x1_0 = kPoint_[0], x1_1 = kPoint_[1];
+				const double x2_0 = kPoint_[2], x2_1 = kPoint_[3];
 
 				const double Ex1_0 = E0_0 * x1_0 + E0_1 * x1_1 + E0_2;
 				const double Ex1_1 = E1_0 * x1_0 + E1_1 * x1_1 + E1_2;
@@ -196,16 +196,33 @@ namespace superansac
 				return r2;
 			}
 
-			FORCE_INLINE double residual(const DataMatrix& point_,
+			FORCE_INLINE double residual(const double* point_,
 				const models::Model& model_) const override
 			{
 				return residual(point_, model_.getData());
 			}
 
-			FORCE_INLINE double residual(const DataMatrix& point_,
-				const DataMatrix& descriptor_) const
+			FORCE_INLINE double residual(const double* point_,
+				const ModelMatrix& descriptor_) const
 			{
 				return sqrt(squaredResidual(point_, descriptor_));
+			}
+
+			// Batched squared residuals: the descriptor is loaded once and the
+			// per-point arithmetic (identical to squaredResidual) runs in a tight,
+			// non-virtual loop over the contiguous row-major rows.
+			void squaredResiduals(
+				const DataMatrix& kData_,
+				const models::Model& kModel_,
+				const size_t kStartRow_,
+				const size_t kCount_,
+				double* kOut_) const override
+			{
+				const ModelMatrix& kDescriptor = kModel_.getData();
+				const size_t kCols = kData_.cols();
+				const double* row = kData_.data() + kStartRow_ * kCols;
+				for (size_t i = 0; i < kCount_; ++i, row += kCols)
+					kOut_[i] = squaredSampsonDistance(row, kDescriptor);
 			}
 
 			// Validate the model by checking the number of inlier with symmetric epipolar distance

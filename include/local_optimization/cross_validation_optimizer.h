@@ -170,7 +170,7 @@ namespace superansac
                     for (size_t j = 0; j < kInlierCount; ++j)
                     {
                         const double kError = 
-							kEstimator_->residual(kData_.row(kInliers_[j]), kCurrentModel);
+							kEstimator_->residual(kData_.row(kInliers_[j]).data(), kCurrentModel);
                         const double kScore = 
 							std::max(0.0, 1.0 - kError / kThreshold);
                         kAccumulatedScores[j] += kScore;
