@@ -84,12 +84,12 @@ struct BundleOptions {
 
 struct BundleStats {
     size_t iterations = 0;
-    double initial_cost;
-    double cost;
-    double lambda;
-    size_t invalid_steps;
-    double step_norm;
-    double grad_norm;
+    double initial_cost = std::numeric_limits<double>::max();
+    double cost = std::numeric_limits<double>::max();
+    double lambda = 0.0;
+    size_t invalid_steps = 0;
+    double step_norm = 0.0;
+    double grad_norm = 0.0;
 };
 
 typedef Eigen::Vector2d Point2D;
