@@ -1,5 +1,8 @@
 #include "superansac.h"
 
+#include "estimators/degensac.h"
+#include "estimators/estimator_fundamental_matrix.h"
+
 #include <iostream>
 
 namespace superansac {
@@ -58,6 +61,25 @@ void SupeRansac::run(const DataMatrix &kData_)
     if (currentSample != nullptr)
         delete[] currentSample;
     currentSample = new size_t[kSampleSize];
+
+    // Fundamental-matrix-specific validation/degeneracy handling
+    const estimator::FundamentalMatrixEstimator *kFundamentalEstimator =
+        dynamic_cast<const estimator::FundamentalMatrixEstimator *>(estimator);
+    // DEGENSAC (dominant-plane degeneracy handling) applies only to
+    // fundamental-matrix estimation from 7-point minimal samples.
+    const bool kUseDegensac = settings.degensacSettings.enabled &&
+        kSampleSize == 7 &&
+        kFundamentalEstimator != nullptr;
+    const double kSquaredHomographyThreshold =
+        settings.degensacSettings.homographyThreshold * settings.degensacSettings.homographyThreshold;
+    // Run-scoped RNG (fixed seed) keeps the pipeline deterministic.
+    utils::UniformRandomGenerator<size_t> degensacRng;
+    // Symmetric-epipolar validation of new-best models: a stable F must keep
+    // most of its Sampson inliers under the (less degeneracy-prone) symmetric
+    // epipolar distance as well.
+    const bool kUseSymmetricValidation =
+        settings.fundamentalSymmetricValidation && kFundamentalEstimator != nullptr;
+    const double kSquaredThreshold = kThreshold_ * kThreshold_;
 
     // Iterate until the maximum number of iterations is reached and the minimum number of iterations is exceeded
     while (iterationNumber < maxIterations || iterationNumber < minIterations)
@@ -160,12 +182,54 @@ void SupeRansac::run(const DataMatrix &kData_)
 
             if (bestScore < currentScore)
             {
+                // Validate the would-be best model with the symmetric epipolar
+                // distance: require at least half of its Sampson inliers (and at
+                // least a minimal sample) to also pass the symmetric test.
+                if (kUseSymmetricValidation)
+                {
+                    const size_t kRequired = std::max(kSampleSize, tmpInliers.size() / 2);
+                    size_t passing = 0;
+                    const auto &kDescriptor = model.getData();
+                    for (const size_t &idx : tmpInliers)
+                        if (kFundamentalEstimator->squaredSymmetricEpipolarDistance(
+                                kData_.row(idx).data(), kDescriptor) < kSquaredThreshold &&
+                            ++passing >= kRequired)
+                            break;
+                    if (passing < kRequired)
+                        continue; // Reject this model; keep the previous best
+                }
+
+                // DEGENSAC: test the candidate minimal-sample model for
+                // dominant-plane degeneracy before accepting it as the new
+                // best. A degenerate candidate is either replaced by a
+                // plane-and-parallax re-estimation that beats the best score,
+                // or rejected entirely (keeping it would lock the search onto
+                // the dominant plane).
+                if (kUseDegensac)
+                {
+                    if (!degensac::applyDegensac(kData_,
+                            estimator,
+                            scoring,
+                            currentSample,
+                            kSquaredHomographyThreshold,
+                            settings.degensacSettings.innerRansacIterations,
+                            bestScore,
+                            degensacRng,
+                            model,
+                            currentScore,
+                            tmpInliers))
+                        continue; // Reject the H-degenerate candidate
+                    if (!(bestScore < currentScore))
+                        continue; // The replacement does not beat the best model
+                }
+
                 // Update the best model
                 bestScore = currentScore;
                 bestModel = model;
-                inliers = std::move(tmpInliers);  // Use move semantics instead of swap
+                inliers.swap(tmpInliers);  // Swap keeps tmpInliers' capacity for reuse
                 isModelUpdated = true;
-                bestModels.emplace_back(std::make_tuple(model, inliers, currentScore));
+
+                bestModels.emplace_back(std::make_tuple(bestModel, inliers, bestScore));
             }
         }
 
@@ -191,7 +255,7 @@ void SupeRansac::run(const DataMatrix &kData_)
                     // Update the best model
                     bestScore = currentScore;
                     bestModel = locallyOptimizedModel;
-                    inliers = std::move(tmpInliers);  // Use move semantics instead of swap
+                    inliers.swap(tmpInliers);  // Swap keeps tmpInliers' capacity for reuse
                 }
             }
 
@@ -227,8 +291,14 @@ void SupeRansac::run(const DataMatrix &kData_)
 
     if (localOptimizer != nullptr)
     {
-        const int kLastIdxToCheck = 
-            bestModels.size() >= settings.topKForLocalOptimization ? 
+        // Scratch for the optional per-candidate final polish
+        models::Model polishedModel;
+        scoring::Score polishedScore;
+        std::vector<size_t> polishedInliers;
+        const bool kPolishTopK = settings.finalPolishTopK && finalOptimizer != nullptr;
+
+        const int kLastIdxToCheck =
+            bestModels.size() >= settings.topKForLocalOptimization ?
                 bestModels.size() - settings.topKForLocalOptimization : 0;
         for (int idx = bestModels.size() - 1; idx >= kLastIdxToCheck; --idx)
         {
@@ -245,12 +315,36 @@ void SupeRansac::run(const DataMatrix &kData_)
                 currentScore, // The score of the current model
                 tmpInliers); // The inliers of the estimated model
 
+            // Optionally polish every locally optimized candidate with the
+            // final optimizer BEFORE the best-model comparison, so a candidate
+            // that overtakes the others only after refinement can still win.
+            if (kPolishTopK && tmpInliers.size() > kSampleSize)
+            {
+                polishedInliers.clear();
+                finalOptimizer->run(kData_,
+                    tmpInliers,
+                    locallyOptimizedModel,
+                    currentScore,
+                    estimator,
+                    scoring,
+                    polishedModel,
+                    polishedScore,
+                    polishedInliers);
+
+                if (polishedScore.getInlierNumber() > kSampleSize && currentScore < polishedScore)
+                {
+                    locallyOptimizedModel = polishedModel;
+                    currentScore = polishedScore;
+                    tmpInliers.swap(polishedInliers);
+                }
+            }
+
             if (bestScore < currentScore)
             {
                 // Update the best model
                 bestScore = currentScore;
                 bestModel = locallyOptimizedModel;
-                inliers = std::move(tmpInliers);  // Use move semantics instead of swap
+                inliers.swap(tmpInliers);  // Swap keeps tmpInliers' capacity for reuse
             }
         }
     }
@@ -274,7 +368,7 @@ void SupeRansac::run(const DataMatrix &kData_)
         {
             bestScore = currentScore;
             bestModel = locallyOptimizedModel;
-            inliers = std::move(tmpInliers);  // Use move semantics instead of swap
+            inliers.swap(tmpInliers);  // Swap keeps tmpInliers' capacity for reuse
         }
     }
 
