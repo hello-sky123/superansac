@@ -35,9 +35,10 @@
 
 #include <Eigen/Core>
 
-using DataMatrix = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+using DataMatrix = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;  // Eigen 默认列主序，行主序取点方便
 
 // Model descriptors are at most 4x4 (H/F/E: 3x3, absolute pose: 3x4, rigid: 4x4).
 // A fixed-capacity matrix keeps the dynamic-size interface but stores the
 // coefficients inline, so constructing/copying models never touches the heap.
+// 尺寸仍是动态的，但存储是 16 个 double 内联在对象里，不走堆，普通动态矩阵会触发堆分配
 using ModelMatrix = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor, 4, 4>;

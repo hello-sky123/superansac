@@ -3,8 +3,6 @@
 #include "estimators/degensac.h"
 #include "estimators/estimator_fundamental_matrix.h"
 
-#include <iostream>
-
 namespace superansac {
 
 SupeRansac::SupeRansac() :

@@ -22,7 +22,7 @@ add_library(SupeRANSAC SHARED
 # Give a unique, stable SONAME to avoid stale copies being picked at runtime
 set_target_properties(SupeRANSAC PROPERTIES
   OUTPUT_NAME superansac_core
-  SOVERSION 1
+  SOVERSION 1                     # 设置共享库的 ABI 版本号（通常是主版本号）
   VERSION   1.0.0
   CXX_VISIBILITY_PRESET default
   VISIBILITY_INLINES_HIDDEN NO

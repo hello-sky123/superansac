@@ -33,8 +33,6 @@
 // Author: Daniel Barath (majti89@gmail.com)
 #pragma once
 
-#include <Eigen/Core>
-
 #include "estimators/abstract_estimator.h"
 #include "samplers/abstract_sampler.h"
 #include "scoring/abstract_scoring.h"
