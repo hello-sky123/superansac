@@ -33,6 +33,8 @@
 // Author: Daniel Barath (majti89@gmail.com)
 #pragma once
 
+#include <memory>
+
 #include "utils/macros.h"
 
 #include "abstract_neighborhood.h"

@@ -36,9 +36,11 @@
 #include "abstract_sampler.h"
 #include "../utils/uniform_random_generator.h"
 #include "../neighborhood/abstract_neighborhood.h"
+#include "../neighborhood/grid_neighborhood_graph.h"
 #include "../utils/types.h"
 #include "prosac_sampler.h"
 
+#include <memory>
 #include <vector>
 #include <iostream>
 

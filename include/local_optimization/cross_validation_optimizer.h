@@ -33,6 +33,7 @@
 // Author: Daniel Barath (barath.daniel@sztaki.mta.hu)
 #pragma once
 
+#include <random>
 #include <vector>
 #include <Eigen/Core>
 #include "abstract_local_optimizer.h"

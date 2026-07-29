@@ -39,6 +39,8 @@
 #include "../utils/macros.h"
 #include "../models/model.h"
 #include "../scoring/score.h"
+#include "../scoring/abstract_scoring.h"
+#include "../estimators/abstract_estimator.h"
 #include "../utils/types.h"
 
 #include <iostream>

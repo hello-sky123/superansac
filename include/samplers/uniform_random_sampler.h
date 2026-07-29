@@ -37,6 +37,7 @@
 #include "../utils/uniform_random_generator.h"
 #include "../utils/types.h"
 
+#include <memory>
 #include <vector>
 #include <iostream>
 

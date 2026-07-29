@@ -36,7 +36,7 @@
 #include <vector>
 #include <Eigen/Eigen>
 #include <unordered_map>
-#include "types.h"
+#include "abstract_inlier_selector.h"
 #include "../neighborhood/abstract_neighborhood.h"
 #include "../utils/macros.h"
 #include "../models/model.h"

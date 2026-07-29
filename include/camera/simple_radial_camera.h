@@ -38,6 +38,7 @@
 #include <unordered_map>
 #include "../utils/types.h"
 #include "../models/model.h"
+#include "abstract_camera.h"
 
 namespace superansac {
 namespace camera {

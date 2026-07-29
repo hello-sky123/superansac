@@ -33,6 +33,9 @@
 // Author: Daniel Barath (majti89@gmail.com)
 #pragma once
 
+#include <cstddef>
+#include <limits>
+
 #include "../utils/macros.h"
 
 namespace superansac::scoring {

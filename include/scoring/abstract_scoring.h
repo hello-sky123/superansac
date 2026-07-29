@@ -36,7 +36,10 @@
 #include "../utils/macros.h"
 #include "../models/model.h"
 #include "../utils/types.h"
+#include "../estimators/abstract_estimator.h"
 #include "score.h"
+#include <cmath>
+#include <utility>
 #include <vector>
 #include <Eigen/Core>
 

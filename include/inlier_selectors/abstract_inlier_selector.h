@@ -38,6 +38,7 @@
 #include <unordered_map>
 #include "../utils/types.h"
 #include "../models/model.h"
+#include "../scoring/abstract_scoring.h"
 
 namespace superansac {
 namespace inlier_selector {

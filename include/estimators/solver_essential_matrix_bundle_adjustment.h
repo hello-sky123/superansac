@@ -34,6 +34,7 @@
 #pragma once
 
 #include "solver_fundamental_matrix_eight_point.h"
+#include "solver_essential_matrix_five_point_nister.h"
 #include "abstract_solver.h"
 #include "../utils/math_utils.h"
 #include "../models/model.h"
