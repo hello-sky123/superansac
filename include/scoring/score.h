@@ -35,8 +35,7 @@
 
 #include "../utils/macros.h"
 
-namespace superansac {
-namespace scoring {
+namespace superansac::scoring {
 
 class Score {
  public:
@@ -47,18 +46,19 @@ class Score {
 
   FORCE_INLINE bool operator<(const Score& score_) const {
     return
-        //inlierNumber < score_.inlierNumber ||
+        // inlierNumber < score_.inlierNumber ||
         value < score_.value;
   }
 
   FORCE_INLINE bool operator>(const Score& score_) const {
-    return  //inlierNumber > score_.inlierNumber ||
+    return
+        // inlierNumber > score_.inlierNumber ||
         value > score_.value;
   }
 
-  FORCE_INLINE double getValue() const { return value; }
+  [[nodiscard]] FORCE_INLINE double getValue() const { return value; }
 
-  FORCE_INLINE size_t getInlierNumber() const { return inlierNumber; }
+  [[nodiscard]] FORCE_INLINE size_t getInlierNumber() const { return inlierNumber; }
 
   void setValue(const double kValue_) { value = kValue_; }
 
@@ -72,5 +72,4 @@ class Score {
   double value;
 };
 
-}  // namespace scoring
-}  // namespace superansac
+}  // namespace superansac::scoring
