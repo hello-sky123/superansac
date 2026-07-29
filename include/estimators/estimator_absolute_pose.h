@@ -48,171 +48,121 @@
 
 #include "solver_homography_four_point.h"
 
-namespace superansac
-{
-	namespace estimator
-	{
-		// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
-		class AbsolutePoseEstimator : public Estimator
-		{
-		public:
-			AbsolutePoseEstimator() {}
-			~AbsolutePoseEstimator() {}
-            
-			// A flag deciding if the points can be weighted when the non-minimal fitting is applied 
-			bool isWeightingApplicable() const override
-            {
-                return true;
-            }
-			
-            double multError() const
-			{
-				return 1.0;
-			}
+namespace superansac {
+namespace estimator {
+// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
+class AbsolutePoseEstimator : public Estimator {
+ public:
+  AbsolutePoseEstimator() {}
+  ~AbsolutePoseEstimator() {}
 
-            double logAlpha0(size_t w, size_t h, double scalingFactor = 0.5) const
-			{
-				return log(1.0 / (w * h * scalingFactor));
-			}
+  // A flag deciding if the points can be weighted when the non-minimal fitting is applied
+  bool isWeightingApplicable() const override { return true; }
 
-			// Degrees of freedom for the MAGSAC++ scoring
-			size_t getDegreesOfFreedom() const
-			{
-				return 2;
-			}
+  double multError() const { return 1.0; }
 
-			// Estimating the model from a minimal sample
-			FORCE_INLINE bool estimateModel(
-				const DataMatrix& kData_, // The data points
-				const size_t *kSample_, // The sample usd for the estimation
-				std::vector<models::Model>* models_) const override // The estimated model parameters
-			{
-				return minimalSolver->estimateModel(kData_, // The data points
-					kSample_, // The sample used for the estimation
-					sampleSize(), // The size of a minimal sample
-					*models_); // The estimated model parameters
-			}
+  double logAlpha0(size_t w, size_t h, double scalingFactor = 0.5) const {
+    return log(1.0 / (w * h * scalingFactor));
+  }
 
-			// Estimating the model from a non-minimal sample
-			FORCE_INLINE bool estimateModelNonminimal(
-                const DataMatrix& kData_, // The data points
-				const size_t *kSample_, // The sample used for the estimation
-				const size_t &kSampleNumber_, // The size of a minimal sample
-				std::vector<models::Model>* models_,
-				const double *kWeights_ = nullptr) const override // The estimated model parameters
-			{
-				// Return of there are not enough points for the estimation
-				if (kSampleNumber_ < nonMinimalSampleSize())
-					return false;
+  // Degrees of freedom for the MAGSAC++ scoring
+  size_t getDegreesOfFreedom() const { return 2; }
 
-				// The PnP algorithm
-				if (!nonMinimalSolver->estimateModel(kData_,
-					kSample_,
-					kSampleNumber_,
-					*models_,
-					kWeights_))
-					return false;
-				return models_->size();
-			}
+  // Estimating the model from a minimal sample
+  FORCE_INLINE bool estimateModel(
+      const DataMatrix& kData_,                            // The data points
+      const size_t* kSample_,                              // The sample usd for the estimation
+      std::vector<models::Model>* models_) const override  // The estimated model parameters
+  {
+    return minimalSolver->estimateModel(kData_,        // The data points
+                                        kSample_,      // The sample used for the estimation
+                                        sampleSize(),  // The size of a minimal sample
+                                        *models_);     // The estimated model parameters
+  }
 
-			FORCE_INLINE double squaredResidual(const double* point_,
-				const models::Model& model_) const override
-			{
-				return squaredResidual(point_, model_.getData());
-			}
+  // Estimating the model from a non-minimal sample
+  FORCE_INLINE bool estimateModelNonminimal(
+      const DataMatrix& kData_,      // The data points
+      const size_t* kSample_,        // The sample used for the estimation
+      const size_t& kSampleNumber_,  // The size of a minimal sample
+      std::vector<models::Model>* models_,
+      const double* kWeights_ = nullptr) const override  // The estimated model parameters
+  {
+    // Return of there are not enough points for the estimation
+    if (kSampleNumber_ < nonMinimalSampleSize()) return false;
 
-			FORCE_INLINE double squaredResidual(const double* point_,
-				const ModelMatrix& descriptor_) const
-			{
-				const double
-					&u = point_[0],
-					&v = point_[1],
-					&x = point_[2],
-					&y = point_[3],
-					&z = point_[4];
+    // The PnP algorithm
+    if (!nonMinimalSolver->estimateModel(kData_, kSample_, kSampleNumber_, *models_, kWeights_))
+      return false;
+    return models_->size();
+  }
 
-				const double 
-					&r11 = descriptor_(0, 0),
-					&r12 = descriptor_(0, 1),
-					&r13 = descriptor_(0, 2),
-					&r21 = descriptor_(1, 0),
-					&r22 = descriptor_(1, 1),
-					&r23 = descriptor_(1, 2),
-					&r31 = descriptor_(2, 0),
-					&r32 = descriptor_(2, 1),
-					&r33 = descriptor_(2, 2),
-					&tx = descriptor_(0, 3),
-					&ty = descriptor_(1, 3),
-					&tz = descriptor_(2, 3);
-				
-				const double px = r11 * x + r12 * y + r13 * z + tx,
-					py = r21 * x + r22 * y + r23 * z + ty,
-					pz = r31 * x + r32 * y + r33 * z + tz;
+  FORCE_INLINE double squaredResidual(const double* point_,
+                                      const models::Model& model_) const override {
+    return squaredResidual(point_, model_.getData());
+  }
 
-				const double pu = px / pz,
-					pv = py / pz;	
+  FORCE_INLINE double squaredResidual(const double* point_, const ModelMatrix& descriptor_) const {
+    const double &u = point_[0], &v = point_[1], &x = point_[2], &y = point_[3], &z = point_[4];
 
-				const double du = pu - u,
-					dv = pv - v;
-				
-				return du * du + dv * dv;
-			}
+    const double &r11 = descriptor_(0, 0), &r12 = descriptor_(0, 1), &r13 = descriptor_(0, 2),
+                 &r21 = descriptor_(1, 0), &r22 = descriptor_(1, 1), &r23 = descriptor_(1, 2),
+                 &r31 = descriptor_(2, 0), &r32 = descriptor_(2, 1), &r33 = descriptor_(2, 2),
+                 &tx = descriptor_(0, 3), &ty = descriptor_(1, 3), &tz = descriptor_(2, 3);
 
-			FORCE_INLINE double residual(const double* point_,
-				const models::Model& model_) const override
-			{
-				return residual(point_, model_.getData());
-			}
+    const double px = r11 * x + r12 * y + r13 * z + tx, py = r21 * x + r22 * y + r23 * z + ty,
+                 pz = r31 * x + r32 * y + r33 * z + tz;
 
-			FORCE_INLINE double residual(const double* point_,
-				const ModelMatrix& descriptor_) const
-			{
-				return sqrt(squaredResidual(point_, descriptor_));
-			}
+    const double pu = px / pz, pv = py / pz;
 
-			// Batched squared residuals: the descriptor is loaded once and the
-			// per-point arithmetic (identical to squaredResidual) runs in a tight,
-			// non-virtual loop over the contiguous row-major rows.
-			void squaredResiduals(
-				const DataMatrix& kData_,
-				const models::Model& kModel_,
-				const size_t kStartRow_,
-				const size_t kCount_,
-				double* kOut_) const override
-			{
-				const ModelMatrix& kDescriptor = kModel_.getData();
-				const size_t kCols = kData_.cols();
-				const double* row = kData_.data() + kStartRow_ * kCols;
-				for (size_t i = 0; i < kCount_; ++i, row += kCols)
-					kOut_[i] = squaredResidual(row, kDescriptor);
-			}
+    const double du = pu - u, dv = pv - v;
 
-			// Enable a quick check to see if the model is valid. This can be a geometric
-			// check or some other verification of the model structure.
-			FORCE_INLINE bool isValidModel(models::Model& model_,
-				const DataMatrix& kData_,
-				const size_t* kMinimalSample_,
-				const double kThreshold_,
-				bool& modelUpdated_) const override
-			{ 
-				// Calculate the determinant of the homography
-				/*const double kDeterminant =
+    return du * du + dv * dv;
+  }
+
+  FORCE_INLINE double residual(const double* point_, const models::Model& model_) const override {
+    return residual(point_, model_.getData());
+  }
+
+  FORCE_INLINE double residual(const double* point_, const ModelMatrix& descriptor_) const {
+    return sqrt(squaredResidual(point_, descriptor_));
+  }
+
+  // Batched squared residuals: the descriptor is loaded once and the
+  // per-point arithmetic (identical to squaredResidual) runs in a tight,
+  // non-virtual loop over the contiguous row-major rows.
+  void squaredResiduals(const DataMatrix& kData_, const models::Model& kModel_,
+                        const size_t kStartRow_, const size_t kCount_,
+                        double* kOut_) const override {
+    const ModelMatrix& kDescriptor = kModel_.getData();
+    const size_t kCols = kData_.cols();
+    const double* row = kData_.data() + kStartRow_ * kCols;
+    for (size_t i = 0; i < kCount_; ++i, row += kCols) kOut_[i] = squaredResidual(row, kDescriptor);
+  }
+
+  // Enable a quick check to see if the model is valid. This can be a geometric
+  // check or some other verification of the model structure.
+  FORCE_INLINE bool isValidModel(models::Model& model_, const DataMatrix& kData_,
+                                 const size_t* kMinimalSample_, const double kThreshold_,
+                                 bool& modelUpdated_) const override {
+    // Calculate the determinant of the homography
+    /*const double kDeterminant =
 					model_.getData().determinant();
 
 				// Check if the homography has a small determinant.
 				constexpr double kMinimumDeterminant = 1e-2;
 				if (abs(kDeterminant) < kMinimumDeterminant)
 					return false;*/
-				return true;
-			}
+    return true;
+  }
 
-			// A function to decide if the selected sample is degenerate or not
-			// before calculating the model parameters
-			FORCE_INLINE bool isValidSample(
-				const DataMatrix& kData_, // All data points
-				const size_t *kSample_) const override // The indices of the selected points
-			{
-				/*if (sampleSize() < 4)
+  // A function to decide if the selected sample is degenerate or not
+  // before calculating the model parameters
+  FORCE_INLINE bool isValidSample(
+      const DataMatrix& kData_,               // All data points
+      const size_t* kSample_) const override  // The indices of the selected points
+  {
+    /*if (sampleSize() < 4)
 					return true;
 
 				// Check oriented constraints
@@ -247,8 +197,8 @@ namespace superansac
 				if (p_a * q_a < 0 || p_b * q_b < 0)
 					return false;*/
 
-				return true;
-			}
-		};
-	}
-}
+    return true;
+  }
+};
+}  // namespace estimator
+}  // namespace superansac

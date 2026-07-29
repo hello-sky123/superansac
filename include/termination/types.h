@@ -41,22 +41,19 @@
 namespace superansac {
 namespace termination {
 
-    // Enum defining available sampler types
-    enum class TerminationType {
-        RANSAC
-    };
+// Enum defining available sampler types
+enum class TerminationType { RANSAC };
 
-    // Factory function to create samplers
-    FORCE_INLINE std::unique_ptr<AbstractCriterion> createTerminationCriterion(const TerminationType kType_) 
-    {
-        switch (kType_) 
-        {
-            case TerminationType::RANSAC:
-                return std::make_unique<RANSACCriterion>();
-            default:
-                throw std::invalid_argument("Unknown Termination Criterion");
-        }
-    }
+// Factory function to create samplers
+FORCE_INLINE std::unique_ptr<AbstractCriterion> createTerminationCriterion(
+    const TerminationType kType_) {
+  switch (kType_) {
+    case TerminationType::RANSAC:
+      return std::make_unique<RANSACCriterion>();
+    default:
+      throw std::invalid_argument("Unknown Termination Criterion");
+  }
+}
 
-}
-}
+}  // namespace termination
+}  // namespace superansac

@@ -40,52 +40,33 @@
 #include "../utils/macros.h"
 #include "../utils/types.h"
 
-namespace superansac
-{
-	namespace estimator
-	{
-		namespace solver
-		{
-			// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
-			class AbstractSolver
-			{
-			public:
-				AbstractSolver()
-				{
-				}
+namespace superansac {
+namespace estimator {
+namespace solver {
+// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
+class AbstractSolver {
+ public:
+  AbstractSolver() {}
 
-				~AbstractSolver()
-				{
-				}
+  ~AbstractSolver() {}
 
-				// Determines if there is a chance of returning multiple models
-				// the function 'estimateModel' is applied.
-				virtual bool returnMultipleModels() const
-				{
-					return maximumSolutions() > 1;
-				}
+  // Determines if there is a chance of returning multiple models
+  // the function 'estimateModel' is applied.
+  virtual bool returnMultipleModels() const { return maximumSolutions() > 1; }
 
-				// The maximum number of solutions returned by the estimator
-				virtual size_t maximumSolutions() const
-				{
-					return 1;
-				}
+  // The maximum number of solutions returned by the estimator
+  virtual size_t maximumSolutions() const { return 1; }
 
-				// The minimum number of points required for the estimation
-				virtual size_t sampleSize() const
-				{
-					return 0;
-				}
+  // The minimum number of points required for the estimation
+  virtual size_t sampleSize() const { return 0; }
 
-				// Estimate the model parameters from the given point sample
-				// using weighted fitting if possible.
-				virtual FORCE_INLINE bool estimateModel(
-					const DataMatrix& kData_,
-					const size_t *kSample_,
-					const size_t kSampleNumber_,
-					std::vector<models::Model> &models_,
-					const double *kWeights_ = nullptr) const = 0;
-			};
-		}
-	}
-}
+  // Estimate the model parameters from the given point sample
+  // using weighted fitting if possible.
+  virtual FORCE_INLINE bool estimateModel(const DataMatrix& kData_, const size_t* kSample_,
+                                          const size_t kSampleNumber_,
+                                          std::vector<models::Model>& models_,
+                                          const double* kWeights_ = nullptr) const = 0;
+};
+}  // namespace solver
+}  // namespace estimator
+}  // namespace superansac

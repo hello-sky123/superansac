@@ -44,86 +44,62 @@
 namespace superansac {
 namespace samplers {
 
-class ImportanceSampler : public AbstractSampler
-{
-    protected:
-        std::unique_ptr<utils::UniformRandomGenerator<size_t>> randomGenerator;
-        std::discrete_distribution<int> multinomialDistribution;
+class ImportanceSampler : public AbstractSampler {
+ protected:
+  std::unique_ptr<utils::UniformRandomGenerator<size_t>> randomGenerator;
+  std::discrete_distribution<int> multinomialDistribution;
 
-    public:
-        // Constructor 
-        ImportanceSampler() {}
-        // Destructor
-        ~ImportanceSampler() {}
+ public:
+  // Constructor
+  ImportanceSampler() {}
+  // Destructor
+  ~ImportanceSampler() {}
 
-        // Return the name of the sampler
-        constexpr static const char *name()
-        {
-            return "ImportanceSampler";
-        }
+  // Return the name of the sampler
+  constexpr static const char* name() { return "ImportanceSampler"; }
 
-        // Initializes any non-trivial variables and sets up sampler if
-        // necessary. Must be called before sample is called.
-        FORCE_INLINE void initialize(
-            const DataMatrix &kData_)
-        {
-            initialize(kData_.rows());
-        }
+  // Initializes any non-trivial variables and sets up sampler if
+  // necessary. Must be called before sample is called.
+  FORCE_INLINE void initialize(const DataMatrix& kData_) { initialize(kData_.rows()); }
 
-        FORCE_INLINE void setProbabilities(const std::vector<double> &kProbabilities_)
-        {
-            // Initialize the distribution from the point probabilities
-            multinomialDistribution = std::discrete_distribution<int>(
-                std::begin(kProbabilities_), 
-                std::end(kProbabilities_));
-        }
+  FORCE_INLINE void setProbabilities(const std::vector<double>& kProbabilities_) {
+    // Initialize the distribution from the point probabilities
+    multinomialDistribution =
+        std::discrete_distribution<int>(std::begin(kProbabilities_), std::end(kProbabilities_));
+  }
 
-        // Initialize function
-        FORCE_INLINE void initialize(
-            const size_t kPointNumber_) // Data matrix
-        {
-            // Initialize the random generator
-            randomGenerator = std::make_unique<utils::UniformRandomGenerator<size_t>>();
-            // Reset the random generator
-            randomGenerator->resetGenerator(0, kPointNumber_ - 1);
-        }
+  // Initialize function
+  FORCE_INLINE void initialize(const size_t kPointNumber_)  // Data matrix
+  {
+    // Initialize the random generator
+    randomGenerator = std::make_unique<utils::UniformRandomGenerator<size_t>>();
+    // Reset the random generator
+    randomGenerator->resetGenerator(0, kPointNumber_ - 1);
+  }
 
-        FORCE_INLINE void update(
-            const size_t* const subset_,
-            const size_t& sampleSize_,
-            const size_t& iteration_number_,
-            const double& inlier_ratio_)
-        {
-            
-        }
+  FORCE_INLINE void update(const size_t* const subset_, const size_t& sampleSize_,
+                           const size_t& iteration_number_, const double& inlier_ratio_) {}
 
-        void reset(const size_t &kDataSize_)
-        {
-            // Reset the random generator
-            randomGenerator->resetGenerator(0, kDataSize_ - 1);
-        }
+  void reset(const size_t& kDataSize_) {
+    // Reset the random generator
+    randomGenerator->resetGenerator(0, kDataSize_ - 1);
+  }
 
+  // Sample function
+  FORCE_INLINE bool sample(const DataMatrix& kData_,  // Data matrix
+                           const int kNumSamples_,    // Number of samples
+                           size_t* kSamples_)         // Sample indices
+  {
+    return sample(kData_.rows(), kNumSamples_, kSamples_);
+  }
 
-        // Sample function
-        FORCE_INLINE bool sample(
-            const DataMatrix &kData_, // Data matrix
-            const int kNumSamples_, // Number of samples
-            size_t *kSamples_) // Sample indices
-        {
-            return sample(kData_.rows(), kNumSamples_, kSamples_);
-        }
-
-        // Sample function
-        FORCE_INLINE bool sample(
-            const size_t kPointNumber_,
-            const int kNumSamples_, 
-            size_t *samples_)
-        {
-            for (size_t sample_idx = 0; sample_idx < kNumSamples_; ++sample_idx)
-                samples_[sample_idx] = multinomialDistribution(randomGenerator->getGenerator());
-            return true;
-        }
+  // Sample function
+  FORCE_INLINE bool sample(const size_t kPointNumber_, const int kNumSamples_, size_t* samples_) {
+    for (size_t sample_idx = 0; sample_idx < kNumSamples_; ++sample_idx)
+      samples_[sample_idx] = multinomialDistribution(randomGenerator->getGenerator());
+    return true;
+  }
 };
 
-}
-}
+}  // namespace samplers
+}  // namespace superansac

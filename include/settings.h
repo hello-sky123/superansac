@@ -41,85 +41,90 @@
 #include "inlier_selectors/types.h"
 
 namespace superansac {
-    struct ARSamplerSettings
-    {
-        double estimatorVariance = 0.9765;
-        double randomness = 0.01;
-    };
+struct ARSamplerSettings {
+  double estimatorVariance = 0.9765;
+  double randomness = 0.01;
+};
 
-    struct LocalOptimizationSettings
-    {
-        size_t maxIterations = 20,  // Reduced from 50 (diminishing returns after 20)
-            graphCutNumber = 20;
-        double sampleSizeMultiplier = 3.0;  // Reduced from 7.0 (3x sufficient for robustness)
-        double spatialCoherenceWeight = 0.1;
-    };
+struct LocalOptimizationSettings {
+  size_t maxIterations = 20,  // Reduced from 50 (diminishing returns after 20)
+      graphCutNumber = 20;
+  double sampleSizeMultiplier = 3.0;  // Reduced from 7.0 (3x sufficient for robustness)
+  double spatialCoherenceWeight = 0.1;
+};
 
-    struct NeighborhoodSettings
-    {
-        double neighborhoodSize = 20.0,
-            neighborhoodGridDensity = 4.0;
-        size_t nearestNeighborNumber = 6;
-    };
+struct NeighborhoodSettings {
+  double neighborhoodSize = 20.0, neighborhoodGridDensity = 4.0;
+  size_t nearestNeighborNumber = 6;
+};
 
-    // DEGENSAC (Chum et al. 2005) dominant-plane degeneracy handling for
-    // fundamental-matrix estimation. When enabled, every so-far-best
-    // minimal-sample model is tested for H-degeneracy and re-estimated by the
-    // plane-and-parallax algorithm if degenerate.
-    struct DegensacSettings
-    {
-        bool enabled = false; // Off by default
-        double homographyThreshold = 2.0; // H-consistency threshold (pixels; scaled with the data normalization)
-        size_t innerRansacIterations = 50; // Plane-and-parallax draws per degenerate event
-    };
+// DEGENSAC (Chum et al. 2005) dominant-plane degeneracy handling for
+// fundamental-matrix estimation. When enabled, every so-far-best
+// minimal-sample model is tested for H-degeneracy and re-estimated by the
+// plane-and-parallax algorithm if degenerate.
+struct DegensacSettings {
+  bool enabled = false;  // Off by default
+  double homographyThreshold =
+      2.0;  // H-consistency threshold (pixels; scaled with the data normalization)
+  size_t innerRansacIterations = 50;  // Plane-and-parallax draws per degenerate event
+};
 
-    struct RANSACSettings
-    {
-        size_t topKForLocalOptimization = 3, // Number of best models used for local optimization (reduced from 5)
-            minIterations = 1000, // Minimum number of iterations
-            maxIterations = 5000, // Maximum number of iterations
-            finalRefinementRounds = 0; // Extra score-gated re-collect-and-refit rounds in the final LSQ optimization
-        double finalRefinementScheduleStart = 3.0, // Widest sigma multiplier in the final-refinement schedule
-            finalRefinementScheduleEnd = 0.5; // Narrowest sigma multiplier in the final-refinement schedule
-        double inlierThreshold = 1.5; // Inlier threshold
-        double confidence = 0.99; // Confidence
-        bool localOptimizationInsideTheLoop = false, // Whether to locally optimize models when you find a new best or later
-            useSprt = true, // Whether to use SPRT test to speed up
-            fundamentalOrientationCheck = false, // Reject minimal F models violating the oriented epipolar constraint
-            fundamentalSymmetricValidation = false, // Validate new-best F models with the symmetric epipolar distance
-            finalRefinementSchedule = false, // Use a shrinking-threshold schedule in the final refinement rounds
-            finalPolishTopK = false, // Run the final optimizer on every top-K LO candidate before selecting the best
-            finalRefinementWeighted = false; // Feed per-point confidences into the final-refinement bundle adjustment
-        size_t essentialCheiralityPointNumber = 1; // Cheirality-vote points for E pose disambiguation (raise to ~25 for dense/RoMA matches; splg gains nothing as cv2.recoverPose redoes cheirality)
-        bool homographyBundleRefinement = true; // Nonlinear (LM) reprojection-error refinement of the non-minimal homography fit (H only)
-        size_t homographyBundleMaxIterations = 5; // LM iterations: early stopping regularizes (full convergence over-fits the plane) and stays within the runtime budget
-        
-        scoring::ScoringType scoring = 
-            scoring::ScoringType::MAGSAC; // Scoring type
+struct RANSACSettings {
+  size_t topKForLocalOptimization =
+             3,              // Number of best models used for local optimization (reduced from 5)
+      minIterations = 1000,  // Minimum number of iterations
+      maxIterations = 5000,  // Maximum number of iterations
+      finalRefinementRounds =
+          0;  // Extra score-gated re-collect-and-refit rounds in the final LSQ optimization
+  double finalRefinementScheduleStart =
+             3.0,  // Widest sigma multiplier in the final-refinement schedule
+      finalRefinementScheduleEnd =
+          0.5;                   // Narrowest sigma multiplier in the final-refinement schedule
+  double inlierThreshold = 1.5;  // Inlier threshold
+  double confidence = 0.99;      // Confidence
+  bool localOptimizationInsideTheLoop =
+           false,      // Whether to locally optimize models when you find a new best or later
+      useSprt = true,  // Whether to use SPRT test to speed up
+      fundamentalOrientationCheck =
+          false,  // Reject minimal F models violating the oriented epipolar constraint
+      fundamentalSymmetricValidation =
+          false,  // Validate new-best F models with the symmetric epipolar distance
+      finalRefinementSchedule =
+          false,  // Use a shrinking-threshold schedule in the final refinement rounds
+      finalPolishTopK =
+          false,  // Run the final optimizer on every top-K LO candidate before selecting the best
+      finalRefinementWeighted =
+          false;  // Feed per-point confidences into the final-refinement bundle adjustment
+  size_t essentialCheiralityPointNumber =
+      1;  // Cheirality-vote points for E pose disambiguation (raise to ~25 for dense/RoMA matches; splg gains nothing as cv2.recoverPose redoes cheirality)
+  bool homographyBundleRefinement =
+      true;  // Nonlinear (LM) reprojection-error refinement of the non-minimal homography fit (H only)
+  size_t homographyBundleMaxIterations =
+      5;  // LM iterations: early stopping regularizes (full convergence over-fits the plane) and stays within the runtime budget
 
-        samplers::SamplerType sampler = 
-            samplers::SamplerType::PROSAC; // Sampler type
-            
-        neighborhood::NeighborhoodType neighborhood = 
-            neighborhood::NeighborhoodType::Grid; // Neighborhood type
-            
-        local_optimization::LocalOptimizationType localOptimization = 
-            local_optimization::LocalOptimizationType::NestedRANSAC; // Local optimization type
+  scoring::ScoringType scoring = scoring::ScoringType::MAGSAC;  // Scoring type
 
-        local_optimization::LocalOptimizationType finalOptimization = 
-            local_optimization::LocalOptimizationType::IRLS; // Final optimization type
+  samplers::SamplerType sampler = samplers::SamplerType::PROSAC;  // Sampler type
 
-        termination::TerminationType terminationCriterion = 
-            termination::TerminationType::RANSAC; // Termination criterion type
+  neighborhood::NeighborhoodType neighborhood =
+      neighborhood::NeighborhoodType::Grid;  // Neighborhood type
 
-        inlier_selector::InlierSelectorType inlierSelector = 
-            inlier_selector::InlierSelectorType::None; // Inlier selector type
+  local_optimization::LocalOptimizationType localOptimization =
+      local_optimization::LocalOptimizationType::NestedRANSAC;  // Local optimization type
 
-        ARSamplerSettings arSamplerSettings;
-        LocalOptimizationSettings localOptimizationSettings,
-            finalOptimizationSettings;
-        NeighborhoodSettings neighborhoodSettings;
-        DegensacSettings degensacSettings;
-    };
+  local_optimization::LocalOptimizationType finalOptimization =
+      local_optimization::LocalOptimizationType::IRLS;  // Final optimization type
 
-}
+  termination::TerminationType terminationCriterion =
+      termination::TerminationType::RANSAC;  // Termination criterion type
+
+  inlier_selector::InlierSelectorType inlierSelector =
+      inlier_selector::InlierSelectorType::None;  // Inlier selector type
+
+  ARSamplerSettings arSamplerSettings;
+  LocalOptimizationSettings localOptimizationSettings, finalOptimizationSettings;
+  NeighborhoodSettings neighborhoodSettings;
+  DegensacSettings degensacSettings;
+};
+
+}  // namespace superansac

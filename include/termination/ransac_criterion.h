@@ -42,46 +42,42 @@
 namespace superansac {
 namespace termination {
 
-class RANSACCriterion : public AbstractCriterion
-{
-    protected:
-        // Required confidence
-        double confidence,
-            logConfidence;
+class RANSACCriterion : public AbstractCriterion {
+ protected:
+  // Required confidence
+  double confidence, logConfidence;
 
-    public:
-        // Constructor 
-        RANSACCriterion() {}
+ public:
+  // Constructor
+  RANSACCriterion() {}
 
-        // Destructor
-        ~RANSACCriterion() {}
+  // Destructor
+  ~RANSACCriterion() {}
 
-        // Set the required confidence
-        FORCE_INLINE void setConfidence(const double kConfidence_)
-        {
-            confidence = kConfidence_;
-            logConfidence = log(1.0 - confidence);
-        }
+  // Set the required confidence
+  FORCE_INLINE void setConfidence(const double kConfidence_) {
+    confidence = kConfidence_;
+    logConfidence = log(1.0 - confidence);
+  }
 
-        // Sample function
-        FORCE_INLINE void check(
-            const DataMatrix &kData_, // Data matrix
-            const scoring::Score &kScore_, // Score object
-            const size_t &kSampleSize_, // Sample size
-            size_t &iterationNumber_, /// Number of iterations
-            bool &immediateTermination_) // Immediate termination flag
-        {
-            const double q = pow(static_cast<double>(kScore_.getInlierNumber()) / kData_.rows(), kSampleSize_);
-            const double log2 = log(1 - q);
+  // Sample function
+  FORCE_INLINE void check(const DataMatrix& kData_,       // Data matrix
+                          const scoring::Score& kScore_,  // Score object
+                          const size_t& kSampleSize_,     // Sample size
+                          size_t& iterationNumber_,       /// Number of iterations
+                          bool& immediateTermination_)    // Immediate termination flag
+  {
+    const double q =
+        pow(static_cast<double>(kScore_.getInlierNumber()) / kData_.rows(), kSampleSize_);
+    const double log2 = log(1 - q);
 
-            if (abs(log2) < std::numeric_limits<double>::epsilon())
-                iterationNumber_ = std::numeric_limits<size_t>::max();
+    if (abs(log2) < std::numeric_limits<double>::epsilon())
+      iterationNumber_ = std::numeric_limits<size_t>::max();
 
-            const double iter = logConfidence / log2;
-            iterationNumber_ = static_cast<size_t>(iter) + 1;
-        }
-       
+    const double iter = logConfidence / log2;
+    iterationNumber_ = static_cast<size_t>(iter) + 1;
+  }
 };
 
-}
-}
+}  // namespace termination
+}  // namespace superansac

@@ -38,279 +38,221 @@
 #include "../models/model.h"
 #include "../utils/types.h"
 
-namespace superansac
+namespace superansac {
+namespace estimator {
+namespace solver {
+// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
+class HomographyFourPointSolver : public AbstractSolver {
+ public:
+  HomographyFourPointSolver() {}
+
+  ~HomographyFourPointSolver() {}
+
+  // Determines if there is a chance of returning multiple models
+  // the function 'estimateModel' is applied.
+  bool returnMultipleModels() const override { return maximumSolutions() > 1; }
+
+  // The maximum number of solutions returned by the estimator
+  size_t maximumSolutions() const override { return 1; }
+
+  // The minimum number of points required for the estimation
+  size_t sampleSize() const override { return 4; }
+
+  // Estimate the model parameters from the given point sample
+  // using weighted fitting if possible.
+  FORCE_INLINE bool estimateModel(
+      const DataMatrix& kData_,                           // The set of data points
+      const size_t* kSample_,                             // The sample used for the estimation
+      const size_t kSampleNumber_,                        // The size of the sample
+      std::vector<models::Model>& models_,                // The estimated model parameters
+      const double* kWeights_ = nullptr) const override;  // The weight for each point
+
+ protected:
+  FORCE_INLINE bool estimateNonMinimalModel(
+      const DataMatrix& kData_,             // The set of data points
+      const size_t* kSample_,               // The sample used for the estimation
+      const size_t kSampleNumber_,          // The size of the sample
+      std::vector<models::Model>& models_,  // The estimated model parameters
+      const double* kWeights_) const;       // The weight for each point
+
+  FORCE_INLINE bool estimateMinimalModel(
+      const DataMatrix& kData_,             // The set of data points
+      const size_t* kSample_,               // The sample used for the estimation
+      const size_t kSampleNumber_,          // The size of the sample
+      std::vector<models::Model>& models_,  // The estimated model parameters
+      const double* kWeights_) const;       // The weight for each point
+};
+
+FORCE_INLINE bool HomographyFourPointSolver::estimateMinimalModel(
+    const DataMatrix& kData_,             // The set of data points
+    const size_t* kSample_,               // The sample used for the estimation
+    const size_t kSampleNumber_,          // The size of the sample
+    std::vector<models::Model>& models_,  // The estimated model parameters
+    const double* kWeights_) const        // The weight for each point
 {
-	namespace estimator
-	{
-		namespace solver
-		{
-			// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
-			class HomographyFourPointSolver : public AbstractSolver
-			{
-			public:
-				HomographyFourPointSolver()
-				{
-				}
+  constexpr size_t kEquationNumber = 2;
+  Eigen::Matrix<double, 8, 9> coefficients;
+  coefficients.setZero();  // Initialize the matrix with zeros
 
-				~HomographyFourPointSolver()
-				{
-				}
+  size_t rowIdx = 0;
 
-				// Determines if there is a chance of returning multiple models
-				// the function 'estimateModel' is applied.
-				bool returnMultipleModels() const override
-				{
-					return maximumSolutions() > 1;
-				}
+  // Remove branch from inner loop by handling weighted/unweighted separately
+  if (kWeights_ == nullptr) {
+    // Unweighted case - weight = 1.0, avoid unnecessary multiplications
+    for (size_t i = 0; i < kSampleNumber_; ++i) {
+      const size_t idx = kSample_ == nullptr ? i : kSample_[i];
 
-				// The maximum number of solutions returned by the estimator
-				size_t maximumSolutions() const override
-				{
-					return 1;
-				}
-				
-				// The minimum number of points required for the estimation
-				size_t sampleSize() const override
-				{
-					return 4;
-				}
+      const double &x1 = kData_(idx, 0), &y1 = kData_(idx, 1), &x2 = kData_(idx, 2),
+                   &y2 = kData_(idx, 3);
 
-				// Estimate the model parameters from the given point sample
-				// using weighted fitting if possible.
-				FORCE_INLINE bool estimateModel(
-					const DataMatrix& kData_, // The set of data points
-					const size_t *kSample_, // The sample used for the estimation
-					const size_t kSampleNumber_, // The size of the sample
-					std::vector<models::Model> &models_, // The estimated model parameters
-					const double *kWeights_ = nullptr) const override; // The weight for each point
-                    
+      coefficients(rowIdx, 0) = -x1;
+      coefficients(rowIdx, 1) = -y1;
+      coefficients(rowIdx, 2) = -1.0;
+      coefficients(rowIdx, 3) = 0.0;
+      coefficients(rowIdx, 4) = 0.0;
+      coefficients(rowIdx, 5) = 0.0;
+      coefficients(rowIdx, 6) = x2 * x1;
+      coefficients(rowIdx, 7) = x2 * y1;
+      coefficients(rowIdx, 8) = -x2;
+      ++rowIdx;
 
-			protected:
-				FORCE_INLINE bool estimateNonMinimalModel(
-					const DataMatrix& kData_, // The set of data points
-					const size_t *kSample_, // The sample used for the estimation
-					const size_t kSampleNumber_, // The size of the sample
-					std::vector<models::Model> &models_, // The estimated model parameters
-					const double *kWeights_) const; // The weight for each point
+      coefficients(rowIdx, 0) = 0.0;
+      coefficients(rowIdx, 1) = 0.0;
+      coefficients(rowIdx, 2) = 0.0;
+      coefficients(rowIdx, 3) = -x1;
+      coefficients(rowIdx, 4) = -y1;
+      coefficients(rowIdx, 5) = -1.0;
+      coefficients(rowIdx, 6) = y2 * x1;
+      coefficients(rowIdx, 7) = y2 * y1;
+      coefficients(rowIdx, 8) = -y2;
+      ++rowIdx;
+    }
+  } else {
+    // Weighted case
+    for (size_t i = 0; i < kSampleNumber_; ++i) {
+      const size_t idx = kSample_ == nullptr ? i : kSample_[i];
 
-				FORCE_INLINE bool estimateMinimalModel(
-					const DataMatrix& kData_, // The set of data points
-					const size_t *kSample_, // The sample used for the estimation
-					const size_t kSampleNumber_, // The size of the sample
-					std::vector<models::Model> &models_, // The estimated model parameters
-					const double *kWeights_) const; // The weight for each point
-			};
+      const double &x1 = kData_(idx, 0), &y1 = kData_(idx, 1), &x2 = kData_(idx, 2),
+                   &y2 = kData_(idx, 3);
 
-			FORCE_INLINE bool HomographyFourPointSolver::estimateMinimalModel(
-                const DataMatrix& kData_, // The set of data points
-                const size_t *kSample_, // The sample used for the estimation
-                const size_t kSampleNumber_, // The size of the sample
-                std::vector<models::Model> &models_, // The estimated model parameters
-                const double *kWeights_) const // The weight for each point
-			{
-				constexpr size_t kEquationNumber = 2;
-				Eigen::Matrix<double, 8, 9> coefficients;
-    			coefficients.setZero(); // Initialize the matrix with zeros
+      const double weight = kWeights_[idx];
+      const double wx1 = weight * x1, wy1 = weight * y1, wx2 = weight * x2, wy2 = weight * y2;
 
-				size_t rowIdx = 0;
+      coefficients(rowIdx, 0) = -wx1;
+      coefficients(rowIdx, 1) = -wy1;
+      coefficients(rowIdx, 2) = -weight;
+      coefficients(rowIdx, 3) = 0.0;
+      coefficients(rowIdx, 4) = 0.0;
+      coefficients(rowIdx, 5) = 0.0;
+      coefficients(rowIdx, 6) = wx2 * x1;
+      coefficients(rowIdx, 7) = wx2 * y1;
+      coefficients(rowIdx, 8) = -wx2;
+      ++rowIdx;
 
-				// Remove branch from inner loop by handling weighted/unweighted separately
-				if (kWeights_ == nullptr)
-				{
-					// Unweighted case - weight = 1.0, avoid unnecessary multiplications
-					for (size_t i = 0; i < kSampleNumber_; ++i)
-					{
-						const size_t idx = kSample_ == nullptr ? i : kSample_[i];
+      coefficients(rowIdx, 0) = 0.0;
+      coefficients(rowIdx, 1) = 0.0;
+      coefficients(rowIdx, 2) = 0.0;
+      coefficients(rowIdx, 3) = -wx1;
+      coefficients(rowIdx, 4) = -wy1;
+      coefficients(rowIdx, 5) = -weight;
+      coefficients(rowIdx, 6) = wy2 * x1;
+      coefficients(rowIdx, 7) = wy2 * y1;
+      coefficients(rowIdx, 8) = -wy2;
+      ++rowIdx;
+    }
+  }
 
-						const double
-							&x1 = kData_(idx, 0),
-							&y1 = kData_(idx, 1),
-							&x2 = kData_(idx, 2),
-							&y2 = kData_(idx, 3);
+  Eigen::Matrix<double, 8, 1> h;
 
-						coefficients(rowIdx, 0) = -x1;
-						coefficients(rowIdx, 1) = -y1;
-						coefficients(rowIdx, 2) = -1.0;
-						coefficients(rowIdx, 3) = 0.0;
-						coefficients(rowIdx, 4) = 0.0;
-						coefficients(rowIdx, 5) = 0.0;
-						coefficients(rowIdx, 6) = x2 * x1;
-						coefficients(rowIdx, 7) = x2 * y1;
-						coefficients(rowIdx, 8) = -x2;
-						++rowIdx;
+  // Applying Gaussian Elimination to recover the null-space.
+  // Average time over 100000 problem instances
+  // LLT solver (i.e., the fastest one in the Eigen library) = 4.2 microseconds
+  // Gaussian Elimination = 3.6 microseconds
+  superansac::utils::gaussElimination<8>(coefficients, h);
 
-						coefficients(rowIdx, 0) = 0.0;
-						coefficients(rowIdx, 1) = 0.0;
-						coefficients(rowIdx, 2) = 0.0;
-						coefficients(rowIdx, 3) = -x1;
-						coefficients(rowIdx, 4) = -y1;
-						coefficients(rowIdx, 5) = -1.0;
-						coefficients(rowIdx, 6) = y2 * x1;
-						coefficients(rowIdx, 7) = y2 * y1;
-						coefficients(rowIdx, 8) = -y2;
-						++rowIdx;
-					}
-				}
-				else
-				{
-					// Weighted case
-					for (size_t i = 0; i < kSampleNumber_; ++i)
-					{
-						const size_t idx = kSample_ == nullptr ? i : kSample_[i];
+  if (h.hasNaN()) return false;
 
-						const double
-							&x1 = kData_(idx, 0),
-							&y1 = kData_(idx, 1),
-							&x2 = kData_(idx, 2),
-							&y2 = kData_(idx, 3);
-
-						const double weight = kWeights_[idx];
-						const double
-							wx1 = weight * x1,
-							wy1 = weight * y1,
-							wx2 = weight * x2,
-							wy2 = weight * y2;
-
-						coefficients(rowIdx, 0) = -wx1;
-						coefficients(rowIdx, 1) = -wy1;
-						coefficients(rowIdx, 2) = -weight;
-						coefficients(rowIdx, 3) = 0.0;
-						coefficients(rowIdx, 4) = 0.0;
-						coefficients(rowIdx, 5) = 0.0;
-						coefficients(rowIdx, 6) = wx2 * x1;
-						coefficients(rowIdx, 7) = wx2 * y1;
-						coefficients(rowIdx, 8) = -wx2;
-						++rowIdx;
-
-						coefficients(rowIdx, 0) = 0.0;
-						coefficients(rowIdx, 1) = 0.0;
-						coefficients(rowIdx, 2) = 0.0;
-						coefficients(rowIdx, 3) = -wx1;
-						coefficients(rowIdx, 4) = -wy1;
-						coefficients(rowIdx, 5) = -weight;
-						coefficients(rowIdx, 6) = wy2 * x1;
-						coefficients(rowIdx, 7) = wy2 * y1;
-						coefficients(rowIdx, 8) = -wy2;
-						++rowIdx;
-					}
-				}
-
-				Eigen::Matrix<double, 8, 1> h;
-
-				// Applying Gaussian Elimination to recover the null-space.
-				// Average time over 100000 problem instances  
-				// LLT solver (i.e., the fastest one in the Eigen library) = 4.2 microseconds
-				// Gaussian Elimination = 3.6 microseconds
-				superansac::utils::gaussElimination<8>(
-					coefficients,
-					h);
-
-				if (h.hasNaN())
-					return false;
-
-				models::Model model;
-				auto &modelData = model.getMutableData();
-				modelData.resize(3, 3);
-				modelData << h(0), h(1), h(2),
-					h(3), h(4), h(5),
-					h(6), h(7), 1.0;
-				models_.emplace_back(model);
-				return true;
-			}
-
-			FORCE_INLINE bool HomographyFourPointSolver::estimateNonMinimalModel(
-                const DataMatrix& kData_, // The set of data points
-                const size_t *kSample_, // The sample used for the estimation
-                const size_t kSampleNumber_, // The size of the sample
-                std::vector<models::Model> &models_, // The estimated model parameters
-                const double *kWeights_) const // The weight for each point
-			{
-				constexpr size_t kEquationNumber = 2;
-				const size_t columns = kData_.cols();
-				const size_t kRowNumber = kEquationNumber * kSampleNumber_;
-				// Thread-local scratch (this solver runs in the local-optimization
-				// inner loops); fully overwritten below.
-				static thread_local DataMatrix coefficients;
-				static thread_local DataMatrix inhomogeneous;
-				coefficients.resize(kRowNumber, 8);
-				inhomogeneous.resize(kRowNumber, 1);
-    			coefficients.setZero(); // Initialize the matrix with zeros
-
-				size_t rowIdx = 0;
-				double weight = 1.0;
-
-				for (size_t i = 0; i < kSampleNumber_; ++i)
-				{
-					const size_t idx =
-						kSample_ == nullptr ? i : kSample_[i];
-
-					const double
-						& x1 = kData_(idx, 0),
-						& y1 = kData_(idx, 1),
-						& x2 = kData_(idx, 2),
-						& y2 = kData_(idx, 3);
-
-					if (kWeights_ != nullptr)
-						weight = kWeights_[idx];
-
-					const double
-						minusWeightTimesX1 = -weight * x1,
-						minusWeightTimesY1 = -weight * y1,
-						weightTimesX2 = weight * x2,
-						weightTimesY2 = weight * y2;
-
-					coefficients(rowIdx, 0) = minusWeightTimesX1;
-					coefficients(rowIdx, 1) = minusWeightTimesY1;
-					coefficients(rowIdx, 2) = -weight;
-					coefficients(rowIdx, 6) = weightTimesX2 * x1;
-					coefficients(rowIdx, 7) = weightTimesX2 * y1;
-					inhomogeneous(rowIdx) = -weightTimesX2;
-					++rowIdx;
-
-					coefficients(rowIdx, 3) = minusWeightTimesX1;
-					coefficients(rowIdx, 4) = minusWeightTimesY1;
-					coefficients(rowIdx, 5) = -weight;
-					coefficients(rowIdx, 6) = weightTimesY2 * x1;
-					coefficients(rowIdx, 7) = weightTimesY2 * y1;
-					inhomogeneous(rowIdx) = -weightTimesY2;
-					++rowIdx;
-				}
-
-				// Applying SVD to solve the problem
-				Eigen::Matrix<double, 8, 1> 
-					h = coefficients.colPivHouseholderQr().solve(inhomogeneous);
-
-				models::Model model;
-				auto &data = model.getMutableData();
-				data.resize(3, 3);
-				data << h(0), h(1), h(2),
-					h(3), h(4), h(5),
-					h(6), h(7), 1.0;
-				models_.emplace_back(model);
-				return true;
-			}
-
-			FORCE_INLINE bool HomographyFourPointSolver::estimateModel(
-				const DataMatrix& kData_, // The set of data points
-				const size_t *kSample_, // The sample used for the estimation
-				const size_t kSampleNumber_, // The size of the sample
-				std::vector<models::Model> &models_, // The estimated model parameters
-				const double *kWeights_) const // The weight for each point
-			{				
-				// If we have a minimal sample, it is usually enough to solve the problem with not necessarily
-				// the most accurate solver. Therefore, we use normal equations for this
-				if (kSampleNumber_ == sampleSize())
-					return estimateMinimalModel(kData_,
-						kSample_,
-						kSampleNumber_,
-						models_,
-						kWeights_);
-				return estimateNonMinimalModel(kData_,
-					kSample_,
-					kSampleNumber_,
-					models_,
-					kWeights_);
-			}
-		}
-	}
+  models::Model model;
+  auto& modelData = model.getMutableData();
+  modelData.resize(3, 3);
+  modelData << h(0), h(1), h(2), h(3), h(4), h(5), h(6), h(7), 1.0;
+  models_.emplace_back(model);
+  return true;
 }
+
+FORCE_INLINE bool HomographyFourPointSolver::estimateNonMinimalModel(
+    const DataMatrix& kData_,             // The set of data points
+    const size_t* kSample_,               // The sample used for the estimation
+    const size_t kSampleNumber_,          // The size of the sample
+    std::vector<models::Model>& models_,  // The estimated model parameters
+    const double* kWeights_) const        // The weight for each point
+{
+  constexpr size_t kEquationNumber = 2;
+  const size_t columns = kData_.cols();
+  const size_t kRowNumber = kEquationNumber * kSampleNumber_;
+  // Thread-local scratch (this solver runs in the local-optimization
+  // inner loops); fully overwritten below.
+  static thread_local DataMatrix coefficients;
+  static thread_local DataMatrix inhomogeneous;
+  coefficients.resize(kRowNumber, 8);
+  inhomogeneous.resize(kRowNumber, 1);
+  coefficients.setZero();  // Initialize the matrix with zeros
+
+  size_t rowIdx = 0;
+  double weight = 1.0;
+
+  for (size_t i = 0; i < kSampleNumber_; ++i) {
+    const size_t idx = kSample_ == nullptr ? i : kSample_[i];
+
+    const double &x1 = kData_(idx, 0), &y1 = kData_(idx, 1), &x2 = kData_(idx, 2),
+                 &y2 = kData_(idx, 3);
+
+    if (kWeights_ != nullptr) weight = kWeights_[idx];
+
+    const double minusWeightTimesX1 = -weight * x1, minusWeightTimesY1 = -weight * y1,
+                 weightTimesX2 = weight * x2, weightTimesY2 = weight * y2;
+
+    coefficients(rowIdx, 0) = minusWeightTimesX1;
+    coefficients(rowIdx, 1) = minusWeightTimesY1;
+    coefficients(rowIdx, 2) = -weight;
+    coefficients(rowIdx, 6) = weightTimesX2 * x1;
+    coefficients(rowIdx, 7) = weightTimesX2 * y1;
+    inhomogeneous(rowIdx) = -weightTimesX2;
+    ++rowIdx;
+
+    coefficients(rowIdx, 3) = minusWeightTimesX1;
+    coefficients(rowIdx, 4) = minusWeightTimesY1;
+    coefficients(rowIdx, 5) = -weight;
+    coefficients(rowIdx, 6) = weightTimesY2 * x1;
+    coefficients(rowIdx, 7) = weightTimesY2 * y1;
+    inhomogeneous(rowIdx) = -weightTimesY2;
+    ++rowIdx;
+  }
+
+  // Applying SVD to solve the problem
+  Eigen::Matrix<double, 8, 1> h = coefficients.colPivHouseholderQr().solve(inhomogeneous);
+
+  models::Model model;
+  auto& data = model.getMutableData();
+  data.resize(3, 3);
+  data << h(0), h(1), h(2), h(3), h(4), h(5), h(6), h(7), 1.0;
+  models_.emplace_back(model);
+  return true;
+}
+
+FORCE_INLINE bool HomographyFourPointSolver::estimateModel(
+    const DataMatrix& kData_,             // The set of data points
+    const size_t* kSample_,               // The sample used for the estimation
+    const size_t kSampleNumber_,          // The size of the sample
+    std::vector<models::Model>& models_,  // The estimated model parameters
+    const double* kWeights_) const        // The weight for each point
+{
+  // If we have a minimal sample, it is usually enough to solve the problem with not necessarily
+  // the most accurate solver. Therefore, we use normal equations for this
+  if (kSampleNumber_ == sampleSize())
+    return estimateMinimalModel(kData_, kSample_, kSampleNumber_, models_, kWeights_);
+  return estimateNonMinimalModel(kData_, kSample_, kSampleNumber_, models_, kWeights_);
+}
+}  // namespace solver
+}  // namespace estimator
+}  // namespace superansac

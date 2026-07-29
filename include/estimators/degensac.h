@@ -44,276 +44,237 @@
 #include "solver_homography_four_point.h"
 #include "solver_fundamental_matrix_plane_and_parallax.h"
 
-namespace superansac
-{
-	namespace degensac
-	{
-		// Squared reprojection error of a correspondence w.r.t. a homography
-		// (same arithmetic as HomographyEstimator::squaredResidual).
-		FORCE_INLINE double squaredHomographyReprojectionError(
-			const double *kPoint_,
-			const Eigen::Matrix3d &kHomography_)
-		{
-			const double &x1 = kPoint_[0],
-				&y1 = kPoint_[1],
-				&x2 = kPoint_[2],
-				&y2 = kPoint_[3];
+namespace superansac {
+namespace degensac {
+// Squared reprojection error of a correspondence w.r.t. a homography
+// (same arithmetic as HomographyEstimator::squaredResidual).
+FORCE_INLINE double squaredHomographyReprojectionError(const double* kPoint_,
+                                                       const Eigen::Matrix3d& kHomography_) {
+  const double &x1 = kPoint_[0], &y1 = kPoint_[1], &x2 = kPoint_[2], &y2 = kPoint_[3];
 
-			const double t3 = kHomography_(2, 0) * x1 + kHomography_(2, 1) * y1 + kHomography_(2, 2);
-			const double t1 = (kHomography_(0, 0) * x1 + kHomography_(0, 1) * y1 + kHomography_(0, 2)) / t3;
-			const double t2 = (kHomography_(1, 0) * x1 + kHomography_(1, 1) * y1 + kHomography_(1, 2)) / t3;
+  const double t3 = kHomography_(2, 0) * x1 + kHomography_(2, 1) * y1 + kHomography_(2, 2);
+  const double t1 = (kHomography_(0, 0) * x1 + kHomography_(0, 1) * y1 + kHomography_(0, 2)) / t3;
+  const double t2 = (kHomography_(1, 0) * x1 + kHomography_(1, 1) * y1 + kHomography_(1, 2)) / t3;
 
-			const double d1 = x2 - t1;
-			const double d2 = y2 - t2;
-			return d1 * d1 + d2 * d2;
-		}
-
-		// DEGENSAC (Chum, Werner, Matas: "Two-View Geometry Estimation Unaffected
-		// by a Dominant Plane", CVPR 2005), ported from graph-cut-ransac's
-		// FundamentalMatrixEstimator::applyDegensac.
-		//
-		// Called on a minimal-sample candidate model that is about to become the
-		// so-far-best. (1) Tests whether >= 5 of the 7 sample points are
-		// consistent with a homography implied by F and a point triplet
-		// (H-degenerate sample). (2) If so, fits the homography to its inliers
-		// and re-estimates F with the plane-and-parallax solver (2 off-plane
-		// points) in a small inner RANSAC, ranking the candidates with the
-		// pipeline's own scoring.
-		//
-		// Returns true if the (possibly replaced) candidate may be accepted:
-		//  * the sample is not H-degenerate -> candidate kept as-is;
-		//  * the sample is H-degenerate and the plane-and-parallax re-estimation
-		//    found a candidate beating kRunningBest_ -> candidate REPLACED
-		//    (model/score/inliers are overwritten);
-		//  * otherwise -> returns false: the H-degenerate candidate must be
-		//    REJECTED (this mirrors the reference, where a degenerate model that
-		//    cannot be fixed never becomes the best model -- keeping it would
-		//    lock the search onto the dominant plane).
-		inline bool applyDegensac(
-			const DataMatrix &kData_, // All data points (normalized coordinates)
-			const estimator::Estimator *kEstimator_, // The fundamental matrix estimator
-			scoring::AbstractScoring *kScoring_, // The scoring object of the pipeline
-			const size_t *kMinimalSample_, // The 7-point minimal sample of the candidate
-			const double kSquaredHomographyThreshold_, // Squared H-consistency threshold (normalized units)
-			const size_t kInnerIterations_, // Number of inner plane-and-parallax draws
-			const scoring::Score &kRunningBest_, // The current best score of the outer loop
-			utils::UniformRandomGenerator<size_t> &rng_, // Run-scoped RNG (deterministic)
-			models::Model &candidateModel_, // In/out: the candidate model
-			scoring::Score &candidateScore_, // In/out: the candidate score
-			std::vector<size_t> &candidateInliers_) // In/out: the inliers of the candidate
-		{
-			constexpr size_t kSampleSize = 7;
-			// The triplets of sample points used to hypothesize the homography
-			constexpr size_t kTriplets[] = {
-				0, 1, 2,
-				3, 4, 5,
-				0, 1, 6,
-				3, 4, 6,
-				2, 5, 6 };
-			constexpr size_t kTripletNumber = 5;
-
-			const size_t kColumns = kData_.cols();
-			const double *kDataPtr = kData_.data();
-
-			// The fundamental matrix of the current best model
-			const Eigen::Matrix3d kFundamentalMatrix =
-				candidateModel_.getData().block<3, 3>(0, 0);
-
-			// The epipole in the second image (left null vector of F)
-			Eigen::JacobiSVD<Eigen::Matrix3d> svd(
-				kFundamentalMatrix,
-				Eigen::ComputeFullU | Eigen::ComputeFullV);
-
-			// H = A - e (M^-1 b)^T is scale-invariant in the epipole, so the
-			// normalization by U(2,2) is only done when it is safe.
-			Eigen::Vector3d epipole = svd.matrixU().col(2);
-			if (std::abs(epipole(2)) > 1e-12)
-				epipole /= epipole(2);
-
-			// The cross-product matrix of the epipole
-			Eigen::Matrix3d epipolarCross;
-			epipolarCross << 0, -epipole(2), epipole(1),
-				epipole(2), 0, -epipole(0),
-				-epipole(1), epipole(0), 0;
-
-			const Eigen::Matrix3d A = epipolarCross * kFundamentalMatrix;
-
-			// Test the triplets for H-degeneracy
-			bool hDegenerateSample = false;
-			Eigen::Matrix3d bestHomography;
-			for (size_t tripletIdx = 0; tripletIdx < kTripletNumber; ++tripletIdx)
-			{
-				const size_t kTripletOffset = tripletIdx * 3;
-				const size_t kPoint1Idx = kMinimalSample_[kTriplets[kTripletOffset]],
-					kPoint2Idx = kMinimalSample_[kTriplets[kTripletOffset + 1]],
-					kPoint3Idx = kMinimalSample_[kTriplets[kTripletOffset + 2]];
-
-				const double *kPoint1Ptr = kDataPtr + kPoint1Idx * kColumns;
-				const double *kPoint2Ptr = kDataPtr + kPoint2Idx * kColumns;
-				const double *kPoint3Ptr = kDataPtr + kPoint3Idx * kColumns;
-
-				const Eigen::Vector3d point11(kPoint1Ptr[0], kPoint1Ptr[1], 1),
-					point12(kPoint2Ptr[0], kPoint2Ptr[1], 1),
-					point13(kPoint3Ptr[0], kPoint3Ptr[1], 1),
-					point21(kPoint1Ptr[2], kPoint1Ptr[3], 1),
-					point22(kPoint2Ptr[2], kPoint2Ptr[3], 1),
-					point23(kPoint3Ptr[2], kPoint3Ptr[3], 1);
-
-				// The cross-products of the destination points and the epipole
-				const Eigen::Vector3d point1CrossEpipole = point21.cross(epipole),
-					point2CrossEpipole = point22.cross(epipole),
-					point3CrossEpipole = point23.cross(epipole);
-
-				const double kNorm1 = point1CrossEpipole.squaredNorm(),
-					kNorm2 = point2CrossEpipole.squaredNorm(),
-					kNorm3 = point3CrossEpipole.squaredNorm();
-				if (kNorm1 < std::numeric_limits<double>::epsilon() ||
-					kNorm2 < std::numeric_limits<double>::epsilon() ||
-					kNorm3 < std::numeric_limits<double>::epsilon())
-					continue;
-
-				Eigen::Vector3d b;
-				b << point21.cross(A * point11).transpose() * point1CrossEpipole / kNorm1,
-					point22.cross(A * point12).transpose() * point2CrossEpipole / kNorm2,
-					point23.cross(A * point13).transpose() * point3CrossEpipole / kNorm3;
-
-				Eigen::Matrix3d M;
-				M << point11(0), point11(1), point11(2),
-					point12(0), point12(1), point12(2),
-					point13(0), point13(1), point13(2);
-
-				const Eigen::Matrix3d homography =
-					A - epipole * (M.inverse() * b).transpose();
-				if (!homography.allFinite())
-					continue;
-
-				// Count the sample points consistent with the implied homography
-				size_t inlierNumber = 3;
-				for (size_t i = 0; i < kSampleSize; ++i)
-				{
-					const size_t kIdx = kMinimalSample_[i];
-					if (kIdx == kPoint1Idx ||
-						kIdx == kPoint2Idx ||
-						kIdx == kPoint3Idx)
-						continue;
-
-					if (squaredHomographyReprojectionError(
-							kDataPtr + kIdx * kColumns, homography) < kSquaredHomographyThreshold_)
-						++inlierNumber;
-				}
-
-				// If at least 5 of the 7 points are consistent with the homography,
-				// the sample is H-degenerate.
-				if (inlierNumber >= 5)
-				{
-					bestHomography = homography;
-					hDegenerateSample = true;
-					break;
-				}
-			}
-
-			if (!hDegenerateSample)
-				return true; // Not degenerate: the candidate may be accepted as-is
-
-			// Collect the homography's inliers among the inliers of F
-			std::vector<size_t> homographyInliers;
-			homographyInliers.reserve(candidateInliers_.size());
-			for (const size_t &kInlierIdx : candidateInliers_)
-				if (squaredHomographyReprojectionError(
-						kDataPtr + kInlierIdx * kColumns, bestHomography) < kSquaredHomographyThreshold_)
-					homographyInliers.emplace_back(kInlierIdx);
-
-			// The homography must be estimable from its inliers
-			static const estimator::solver::HomographyFourPointSolver kHomographySolver;
-			if (homographyInliers.size() < kHomographySolver.sampleSize())
-				return false;
-
-			// Fit the homography to all of its inliers
-			std::vector<models::Model> homographies;
-			if (!kHomographySolver.estimateModel(kData_,
-					homographyInliers.data(),
-					homographyInliers.size(),
-					homographies) ||
-				homographies.size() != 1 ||
-				!homographies[0].getData().allFinite())
-				return false;
-
-			// Re-estimate the fundamental matrix by the plane-and-parallax
-			// algorithm in a small inner RANSAC. The 2-point samples are drawn
-			// from the candidate's OFF-PLANE inliers (its inliers that are not
-			// consistent with the homography) -- that is where the parallax
-			// information lives. Drawing from all points (as the reference's
-			// full inner GC-RANSAC effectively affords) would need thousands of
-			// draws on outlier-heavy data to hit two off-plane inliers.
-			estimator::solver::FundamentalMatrixPlaneParallaxSolver planeParallaxSolver;
-			planeParallaxSolver.setHomography(&homographies[0].getData());
-
-			const size_t kPointNumber = kData_.rows();
-			if (kPointNumber < 2)
-				return false;
-
-			// The off-plane inliers of the candidate fundamental matrix
-			std::vector<size_t> offPlaneInliers;
-			offPlaneInliers.reserve(candidateInliers_.size());
-			{
-				size_t hIdx = 0; // homographyInliers preserves candidateInliers_'s order
-				for (const size_t &kInlierIdx : candidateInliers_)
-					if (hIdx < homographyInliers.size() && homographyInliers[hIdx] == kInlierIdx)
-						++hIdx;
-					else
-						offPlaneInliers.emplace_back(kInlierIdx);
-			}
-			// Sample from the off-plane pool when possible; otherwise from all points
-			const bool kSampleOffPlane = offPlaneInliers.size() >= 2;
-			const size_t kPoolSize = kSampleOffPlane ? offPlaneInliers.size() : kPointNumber;
-
-			bool updated = false;
-			size_t sample[2];
-			std::vector<models::Model> candidateModels;
-			std::vector<size_t> candidateInliers,
-				bestCandidateInliers;
-			candidateInliers.reserve(kPointNumber);
-			bestCandidateInliers.reserve(kPointNumber);
-			models::Model bestCandidateModel;
-			scoring::Score runningBest = kRunningBest_;
-
-			for (size_t iteration = 0; iteration < kInnerIterations_; ++iteration)
-			{
-				rng_.generateUniqueRandomSet(sample, 2, kPoolSize - 1);
-				if (kSampleOffPlane)
-				{
-					sample[0] = offPlaneInliers[sample[0]];
-					sample[1] = offPlaneInliers[sample[1]];
-				}
-
-				candidateModels.clear();
-				if (!planeParallaxSolver.estimateModel(kData_, sample, 2, candidateModels))
-					continue;
-
-				for (const auto &candidate : candidateModels)
-				{
-					candidateInliers.clear();
-					const scoring::Score kCandidateScore = kScoring_->score(
-						kData_, candidate, kEstimator_, candidateInliers, true, runningBest);
-
-					if (runningBest < kCandidateScore)
-					{
-						runningBest = kCandidateScore;
-						bestCandidateModel = candidate;
-						bestCandidateInliers.swap(candidateInliers);
-						updated = true;
-					}
-				}
-			}
-
-			if (!updated)
-				return false; // Degenerate and not fixable: reject the candidate
-
-			// Replace the candidate with the re-estimated model
-			candidateModel_ = bestCandidateModel;
-			candidateScore_ = runningBest;
-			candidateInliers_.swap(bestCandidateInliers);
-			return true;
-		}
-	}
+  const double d1 = x2 - t1;
+  const double d2 = y2 - t2;
+  return d1 * d1 + d2 * d2;
 }
+
+// DEGENSAC (Chum, Werner, Matas: "Two-View Geometry Estimation Unaffected
+// by a Dominant Plane", CVPR 2005), ported from graph-cut-ransac's
+// FundamentalMatrixEstimator::applyDegensac.
+//
+// Called on a minimal-sample candidate model that is about to become the
+// so-far-best. (1) Tests whether >= 5 of the 7 sample points are
+// consistent with a homography implied by F and a point triplet
+// (H-degenerate sample). (2) If so, fits the homography to its inliers
+// and re-estimates F with the plane-and-parallax solver (2 off-plane
+// points) in a small inner RANSAC, ranking the candidates with the
+// pipeline's own scoring.
+//
+// Returns true if the (possibly replaced) candidate may be accepted:
+//  * the sample is not H-degenerate -> candidate kept as-is;
+//  * the sample is H-degenerate and the plane-and-parallax re-estimation
+//    found a candidate beating kRunningBest_ -> candidate REPLACED
+//    (model/score/inliers are overwritten);
+//  * otherwise -> returns false: the H-degenerate candidate must be
+//    REJECTED (this mirrors the reference, where a degenerate model that
+//    cannot be fixed never becomes the best model -- keeping it would
+//    lock the search onto the dominant plane).
+inline bool applyDegensac(
+    const DataMatrix& kData_,                 // All data points (normalized coordinates)
+    const estimator::Estimator* kEstimator_,  // The fundamental matrix estimator
+    scoring::AbstractScoring* kScoring_,      // The scoring object of the pipeline
+    const size_t* kMinimalSample_,            // The 7-point minimal sample of the candidate
+    const double
+        kSquaredHomographyThreshold_,     // Squared H-consistency threshold (normalized units)
+    const size_t kInnerIterations_,       // Number of inner plane-and-parallax draws
+    const scoring::Score& kRunningBest_,  // The current best score of the outer loop
+    utils::UniformRandomGenerator<size_t>& rng_,  // Run-scoped RNG (deterministic)
+    models::Model& candidateModel_,               // In/out: the candidate model
+    scoring::Score& candidateScore_,              // In/out: the candidate score
+    std::vector<size_t>& candidateInliers_)       // In/out: the inliers of the candidate
+{
+  constexpr size_t kSampleSize = 7;
+  // The triplets of sample points used to hypothesize the homography
+  constexpr size_t kTriplets[] = {0, 1, 2, 3, 4, 5, 0, 1, 6, 3, 4, 6, 2, 5, 6};
+  constexpr size_t kTripletNumber = 5;
+
+  const size_t kColumns = kData_.cols();
+  const double* kDataPtr = kData_.data();
+
+  // The fundamental matrix of the current best model
+  const Eigen::Matrix3d kFundamentalMatrix = candidateModel_.getData().block<3, 3>(0, 0);
+
+  // The epipole in the second image (left null vector of F)
+  Eigen::JacobiSVD<Eigen::Matrix3d> svd(kFundamentalMatrix,
+                                        Eigen::ComputeFullU | Eigen::ComputeFullV);
+
+  // H = A - e (M^-1 b)^T is scale-invariant in the epipole, so the
+  // normalization by U(2,2) is only done when it is safe.
+  Eigen::Vector3d epipole = svd.matrixU().col(2);
+  if (std::abs(epipole(2)) > 1e-12) epipole /= epipole(2);
+
+  // The cross-product matrix of the epipole
+  Eigen::Matrix3d epipolarCross;
+  epipolarCross << 0, -epipole(2), epipole(1), epipole(2), 0, -epipole(0), -epipole(1), epipole(0),
+      0;
+
+  const Eigen::Matrix3d A = epipolarCross * kFundamentalMatrix;
+
+  // Test the triplets for H-degeneracy
+  bool hDegenerateSample = false;
+  Eigen::Matrix3d bestHomography;
+  for (size_t tripletIdx = 0; tripletIdx < kTripletNumber; ++tripletIdx) {
+    const size_t kTripletOffset = tripletIdx * 3;
+    const size_t kPoint1Idx = kMinimalSample_[kTriplets[kTripletOffset]],
+                 kPoint2Idx = kMinimalSample_[kTriplets[kTripletOffset + 1]],
+                 kPoint3Idx = kMinimalSample_[kTriplets[kTripletOffset + 2]];
+
+    const double* kPoint1Ptr = kDataPtr + kPoint1Idx * kColumns;
+    const double* kPoint2Ptr = kDataPtr + kPoint2Idx * kColumns;
+    const double* kPoint3Ptr = kDataPtr + kPoint3Idx * kColumns;
+
+    const Eigen::Vector3d point11(kPoint1Ptr[0], kPoint1Ptr[1], 1),
+        point12(kPoint2Ptr[0], kPoint2Ptr[1], 1), point13(kPoint3Ptr[0], kPoint3Ptr[1], 1),
+        point21(kPoint1Ptr[2], kPoint1Ptr[3], 1), point22(kPoint2Ptr[2], kPoint2Ptr[3], 1),
+        point23(kPoint3Ptr[2], kPoint3Ptr[3], 1);
+
+    // The cross-products of the destination points and the epipole
+    const Eigen::Vector3d point1CrossEpipole = point21.cross(epipole),
+                          point2CrossEpipole = point22.cross(epipole),
+                          point3CrossEpipole = point23.cross(epipole);
+
+    const double kNorm1 = point1CrossEpipole.squaredNorm(),
+                 kNorm2 = point2CrossEpipole.squaredNorm(),
+                 kNorm3 = point3CrossEpipole.squaredNorm();
+    if (kNorm1 < std::numeric_limits<double>::epsilon() ||
+        kNorm2 < std::numeric_limits<double>::epsilon() ||
+        kNorm3 < std::numeric_limits<double>::epsilon())
+      continue;
+
+    Eigen::Vector3d b;
+    b << point21.cross(A * point11).transpose() * point1CrossEpipole / kNorm1,
+        point22.cross(A * point12).transpose() * point2CrossEpipole / kNorm2,
+        point23.cross(A * point13).transpose() * point3CrossEpipole / kNorm3;
+
+    Eigen::Matrix3d M;
+    M << point11(0), point11(1), point11(2), point12(0), point12(1), point12(2), point13(0),
+        point13(1), point13(2);
+
+    const Eigen::Matrix3d homography = A - epipole * (M.inverse() * b).transpose();
+    if (!homography.allFinite()) continue;
+
+    // Count the sample points consistent with the implied homography
+    size_t inlierNumber = 3;
+    for (size_t i = 0; i < kSampleSize; ++i) {
+      const size_t kIdx = kMinimalSample_[i];
+      if (kIdx == kPoint1Idx || kIdx == kPoint2Idx || kIdx == kPoint3Idx) continue;
+
+      if (squaredHomographyReprojectionError(kDataPtr + kIdx * kColumns, homography) <
+          kSquaredHomographyThreshold_)
+        ++inlierNumber;
+    }
+
+    // If at least 5 of the 7 points are consistent with the homography,
+    // the sample is H-degenerate.
+    if (inlierNumber >= 5) {
+      bestHomography = homography;
+      hDegenerateSample = true;
+      break;
+    }
+  }
+
+  if (!hDegenerateSample) return true;  // Not degenerate: the candidate may be accepted as-is
+
+  // Collect the homography's inliers among the inliers of F
+  std::vector<size_t> homographyInliers;
+  homographyInliers.reserve(candidateInliers_.size());
+  for (const size_t& kInlierIdx : candidateInliers_)
+    if (squaredHomographyReprojectionError(kDataPtr + kInlierIdx * kColumns, bestHomography) <
+        kSquaredHomographyThreshold_)
+      homographyInliers.emplace_back(kInlierIdx);
+
+  // The homography must be estimable from its inliers
+  static const estimator::solver::HomographyFourPointSolver kHomographySolver;
+  if (homographyInliers.size() < kHomographySolver.sampleSize()) return false;
+
+  // Fit the homography to all of its inliers
+  std::vector<models::Model> homographies;
+  if (!kHomographySolver.estimateModel(kData_, homographyInliers.data(), homographyInliers.size(),
+                                       homographies) ||
+      homographies.size() != 1 || !homographies[0].getData().allFinite())
+    return false;
+
+  // Re-estimate the fundamental matrix by the plane-and-parallax
+  // algorithm in a small inner RANSAC. The 2-point samples are drawn
+  // from the candidate's OFF-PLANE inliers (its inliers that are not
+  // consistent with the homography) -- that is where the parallax
+  // information lives. Drawing from all points (as the reference's
+  // full inner GC-RANSAC effectively affords) would need thousands of
+  // draws on outlier-heavy data to hit two off-plane inliers.
+  estimator::solver::FundamentalMatrixPlaneParallaxSolver planeParallaxSolver;
+  planeParallaxSolver.setHomography(&homographies[0].getData());
+
+  const size_t kPointNumber = kData_.rows();
+  if (kPointNumber < 2) return false;
+
+  // The off-plane inliers of the candidate fundamental matrix
+  std::vector<size_t> offPlaneInliers;
+  offPlaneInliers.reserve(candidateInliers_.size());
+  {
+    size_t hIdx = 0;  // homographyInliers preserves candidateInliers_'s order
+    for (const size_t& kInlierIdx : candidateInliers_)
+      if (hIdx < homographyInliers.size() && homographyInliers[hIdx] == kInlierIdx)
+        ++hIdx;
+      else
+        offPlaneInliers.emplace_back(kInlierIdx);
+  }
+  // Sample from the off-plane pool when possible; otherwise from all points
+  const bool kSampleOffPlane = offPlaneInliers.size() >= 2;
+  const size_t kPoolSize = kSampleOffPlane ? offPlaneInliers.size() : kPointNumber;
+
+  bool updated = false;
+  size_t sample[2];
+  std::vector<models::Model> candidateModels;
+  std::vector<size_t> candidateInliers, bestCandidateInliers;
+  candidateInliers.reserve(kPointNumber);
+  bestCandidateInliers.reserve(kPointNumber);
+  models::Model bestCandidateModel;
+  scoring::Score runningBest = kRunningBest_;
+
+  for (size_t iteration = 0; iteration < kInnerIterations_; ++iteration) {
+    rng_.generateUniqueRandomSet(sample, 2, kPoolSize - 1);
+    if (kSampleOffPlane) {
+      sample[0] = offPlaneInliers[sample[0]];
+      sample[1] = offPlaneInliers[sample[1]];
+    }
+
+    candidateModels.clear();
+    if (!planeParallaxSolver.estimateModel(kData_, sample, 2, candidateModels)) continue;
+
+    for (const auto& candidate : candidateModels) {
+      candidateInliers.clear();
+      const scoring::Score kCandidateScore =
+          kScoring_->score(kData_, candidate, kEstimator_, candidateInliers, true, runningBest);
+
+      if (runningBest < kCandidateScore) {
+        runningBest = kCandidateScore;
+        bestCandidateModel = candidate;
+        bestCandidateInliers.swap(candidateInliers);
+        updated = true;
+      }
+    }
+  }
+
+  if (!updated) return false;  // Degenerate and not fixable: reject the candidate
+
+  // Replace the candidate with the re-estimated model
+  candidateModel_ = bestCandidateModel;
+  candidateScore_ = runningBest;
+  candidateInliers_.swap(bestCandidateInliers);
+  return true;
+}
+}  // namespace degensac
+}  // namespace superansac

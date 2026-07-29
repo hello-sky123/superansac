@@ -47,139 +47,121 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
-namespace superansac 
-{
-	namespace inlier_selector
-	{
-		class SpacePartitioningRANSAC : public AbstractInlierSelector
-		{
-        protected:
-            std::vector<bool> gridCornerMask;
-            std::vector<bool> gridAngleMask;
-	        std::vector<std::tuple<double, double, double, double>> gridCornerCoordinates;
-            std::vector<std::tuple<int, int, double, double>> gridCornerCoordinatesH;
-            std::vector<std::tuple<int, int, int, double, double, double>> gridCornerCoordinates3D;
-	        std::vector<std::tuple<double, double, double, double, double, double>> gridCornerAngles;
-            std::vector<double> additionalParameters;
-            double scaleSrc, offsetXSrc, offsetYSrc, scaleDst, offsetXDst, offsetYDst;
+namespace superansac {
+namespace inlier_selector {
+class SpacePartitioningRANSAC : public AbstractInlierSelector {
+ protected:
+  std::vector<bool> gridCornerMask;
+  std::vector<bool> gridAngleMask;
+  std::vector<std::tuple<double, double, double, double>> gridCornerCoordinates;
+  std::vector<std::tuple<int, int, double, double>> gridCornerCoordinatesH;
+  std::vector<std::tuple<int, int, int, double, double, double>> gridCornerCoordinates3D;
+  std::vector<std::tuple<double, double, double, double, double, double>> gridCornerAngles;
+  std::vector<double> additionalParameters;
+  double scaleSrc, offsetXSrc, offsetYSrc, scaleDst, offsetXDst, offsetYDst;
 
-			neighborhood::AbstractNeighborhoodGraph* neighborhoodGraph;
+  neighborhood::AbstractNeighborhoodGraph* neighborhoodGraph;
 
-            FORCE_INLINE void runHomography(
-				const DataMatrix &kData_,
-				const models::Model &kModel_,
-                const double& kInlierOutlierThreshold_,
-                std::vector<const std::vector<size_t>*>& selectedCells_,
-                size_t& pointNumber_);
-            
-            FORCE_INLINE void runFundamentalMatrix(
-				const DataMatrix &kData_,
-				const models::Model &kModel_,
-                const double& kInlierOutlierThreshold_,
-                std::vector<const std::vector<size_t>*>& selectedCells_,
-                size_t& pointNumber_);
+  FORCE_INLINE void runHomography(const DataMatrix& kData_, const models::Model& kModel_,
+                                  const double& kInlierOutlierThreshold_,
+                                  std::vector<const std::vector<size_t>*>& selectedCells_,
+                                  size_t& pointNumber_);
 
-		public:
-            cv::Mat img1, img2;
+  FORCE_INLINE void runFundamentalMatrix(const DataMatrix& kData_, const models::Model& kModel_,
+                                         const double& kInlierOutlierThreshold_,
+                                         std::vector<const std::vector<size_t>*>& selectedCells_,
+                                         size_t& pointNumber_);
 
-			SpacePartitioningRANSAC() : scaleSrc(1.0), offsetXSrc(0.0), offsetYSrc(0.0), scaleDst(1.0), offsetXDst(0.0), offsetYDst(0.0)
-			{
-			}
+ public:
+  cv::Mat img1, img2;
 
-            ~SpacePartitioningRANSAC() {}
+  SpacePartitioningRANSAC()
+      : scaleSrc(1.0),
+        offsetXSrc(0.0),
+        offsetYSrc(0.0),
+        scaleDst(1.0),
+        offsetXDst(0.0),
+        offsetYDst(0.0) {}
 
-            void setNormalizers(
-                const double &kScaleSrc_,
-                const double &kOffsetXSrc_,
-                const double &kOffsetYSrc_,
-                const double &kScaleDst_,
-                const double &kOffsetXDst_,
-                const double &kOffsetYDst_)
-            {
-                scaleSrc = kScaleSrc_;
-                offsetXSrc = kOffsetXSrc_;
-                offsetYSrc = kOffsetYSrc_;
-                scaleDst = kScaleDst_;
-                offsetXDst = kOffsetXDst_;
-                offsetYDst = kOffsetYDst_;
-            }
+  ~SpacePartitioningRANSAC() {}
 
-			void initialize(
-				neighborhood::AbstractNeighborhoodGraph* neighborhoodGraph_,
-				const models::Types kModelType_)
-			{
-				neighborhoodGraph = neighborhoodGraph_;
-				modelType = kModelType_;
+  void setNormalizers(const double& kScaleSrc_, const double& kOffsetXSrc_,
+                      const double& kOffsetYSrc_, const double& kScaleDst_,
+                      const double& kOffsetXDst_, const double& kOffsetYDst_) {
+    scaleSrc = kScaleSrc_;
+    offsetXSrc = kOffsetXSrc_;
+    offsetYSrc = kOffsetYSrc_;
+    scaleDst = kScaleDst_;
+    offsetXDst = kOffsetXDst_;
+    offsetYDst = kOffsetYDst_;
+  }
 
-                // Save additional info needed for the selection
-                const auto& kSizes = neighborhoodGraph_->getCellSizes();
-                // Number of dimensions
-                const size_t& kDimensions = kSizes.size();
+  void initialize(neighborhood::AbstractNeighborhoodGraph* neighborhoodGraph_,
+                  const models::Types kModelType_) {
+    neighborhoodGraph = neighborhoodGraph_;
+    modelType = kModelType_;
 
-                // The number cells filled in the grid
-                const size_t& kCellNumber = neighborhoodGraph_->filledCellNumber();
-                const size_t& kDivisionNumber = neighborhoodGraph_->getDivisionNumber();
-                const size_t kMaximumCellNumber = std::pow(kDivisionNumber, kDimensions);
+    // Save additional info needed for the selection
+    const auto& kSizes = neighborhoodGraph_->getCellSizes();
+    // Number of dimensions
+    const size_t& kDimensions = kSizes.size();
 
-                // Initialize the structures speeding up the selection by caching data
-                gridCornerMask.resize(kMaximumCellNumber, false);
+    // The number cells filled in the grid
+    const size_t& kCellNumber = neighborhoodGraph_->filledCellNumber();
+    const size_t& kDivisionNumber = neighborhoodGraph_->getDivisionNumber();
+    const size_t kMaximumCellNumber = std::pow(kDivisionNumber, kDimensions);
 
-                switch (kModelType_)
-                {
-                case models::Types::Homography:
-                    gridCornerCoordinates.resize(kMaximumCellNumber);
-                    break;
-                case models::Types::FundamentalMatrix:
-		            gridCornerAngles.resize(kMaximumCellNumber);
-                    gridCornerCoordinates.resize(kMaximumCellNumber);
-                    gridCornerMask.resize(kMaximumCellNumber, false);
-                    gridAngleMask.resize(kMaximumCellNumber, false);
-                    break;
-                }
-                
-                /*if (kDimensions == 6)
+    // Initialize the structures speeding up the selection by caching data
+    gridCornerMask.resize(kMaximumCellNumber, false);
+
+    switch (kModelType_) {
+      case models::Types::Homography:
+        gridCornerCoordinates.resize(kMaximumCellNumber);
+        break;
+      case models::Types::FundamentalMatrix:
+        gridCornerAngles.resize(kMaximumCellNumber);
+        gridCornerCoordinates.resize(kMaximumCellNumber);
+        gridCornerMask.resize(kMaximumCellNumber, false);
+        gridAngleMask.resize(kMaximumCellNumber, false);
+        break;
+    }
+
+    /*if (kDimensions == 6)
                     gridCornerCoordinates3D.resize(kMaximumCellNumber);
                 else
                     gridCornerCoordinatesH.resize(kMaximumCellNumber);*/
 
-                additionalParameters.resize(kDimensions + 1);
-                for (size_t dimension = 0; dimension < kDimensions; ++dimension)
-                    additionalParameters[dimension] = kSizes[dimension]; // The cell size along the current dimension
-                additionalParameters[kDimensions] = kDivisionNumber; // The number of cells along an axis 
-			}
+    additionalParameters.resize(kDimensions + 1);
+    for (size_t dimension = 0; dimension < kDimensions; ++dimension)
+      additionalParameters[dimension] =
+          kSizes[dimension];  // The cell size along the current dimension
+    additionalParameters[kDimensions] = kDivisionNumber;  // The number of cells along an axis
+  }
 
-            // The function that runs the model-based inlier selector
-            void run(
-                const DataMatrix &kData_, // The data points
-                const models::Model &kModel_, // The model estimated
-                const scoring::AbstractScoring *kScoring_, // The scoring object used for the model estimation
-                std::vector<const std::vector<size_t>*>& selectedCells_, // The indices of the points selected
-                size_t& pointNumber_) // The number of points selected
-            {
-                // Initializing the selected point number to zero
-                pointNumber_ = 0;
+  // The function that runs the model-based inlier selector
+  void run(const DataMatrix& kData_,      // The data points
+           const models::Model& kModel_,  // The model estimated
+           const scoring::AbstractScoring*
+               kScoring_,  // The scoring object used for the model estimation
+           std::vector<const std::vector<size_t>*>&
+               selectedCells_,    // The indices of the points selected
+           size_t& pointNumber_)  // The number of points selected
+  {
+    // Initializing the selected point number to zero
+    pointNumber_ = 0;
 
-                // Get the current inlier-outlier threshold
-                const double& kInlierOutlierThreshold_ = 3.0 / 2.0 * kScoring_->getThreshold();
+    // Get the current inlier-outlier threshold
+    const double& kInlierOutlierThreshold_ = 3.0 / 2.0 * kScoring_->getThreshold();
 
-                if (modelType == models::Types::Homography)
-                    runHomography(
-                        kData_,
-                        kModel_,
-                        kInlierOutlierThreshold_,
-                        selectedCells_,
-                        pointNumber_);
-                else if (modelType == models::Types::FundamentalMatrix)
-                    runFundamentalMatrix(
-                        kData_,
-                        kModel_,
-                        kInlierOutlierThreshold_,
-                        selectedCells_,
-                        pointNumber_);
-                else
-                    throw std::runtime_error("The estimator type is not supported by the space partitioning RANSAC.");
+    if (modelType == models::Types::Homography)
+      runHomography(kData_, kModel_, kInlierOutlierThreshold_, selectedCells_, pointNumber_);
+    else if (modelType == models::Types::FundamentalMatrix)
+      runFundamentalMatrix(kData_, kModel_, kInlierOutlierThreshold_, selectedCells_, pointNumber_);
+    else
+      throw std::runtime_error(
+          "The estimator type is not supported by the space partitioning RANSAC.");
 
-                /*else if constexpr (std::is_same<_Estimator, gcransac::utils::DefaultRigidTransformationEstimator>())
+    /*else if constexpr (std::is_same<_Estimator, gcransac::utils::DefaultRigidTransformationEstimator>())
                     runRigidTransformation(
                         kCorrespondences_,
                         kModel_,
@@ -199,277 +181,234 @@ namespace superansac
                         pointNumber_ += points.size();
                     }
                 }*/
-            }
+  }
 
-            /*void runRigidTransformation(
+  /*void runRigidTransformation(
 				const DataMatrix &kData_,
 				const models::Model &kModel_,
                 std::vector<const std::vector<size_t>*>& selectedCells_,
                 size_t& pointNumber_,
                 const double& kInlierOutlierThreshold_);*/
-				
-		};
-        
-        FORCE_INLINE void SpacePartitioningRANSAC::runHomography(
-            const DataMatrix &kData_,
-            const models::Model &kModel_,
-            const double& kInlierOutlierThreshold_,
-            std::vector<const std::vector<size_t>*>& selectedCells_,
-            size_t& pointNumber_)
-        {
-            
-        }
+};
 
-        FORCE_INLINE void SpacePartitioningRANSAC::runFundamentalMatrix(
-            const DataMatrix &kData_,
-            const models::Model &kModel_,
-            const double& kInlierOutlierThreshold_,
-            std::vector<const std::vector<size_t>*>& selectedCells_,
-            size_t& pointNumber_)
-        {
-            // The actual descriptor of the model
-            const auto &kModelData = kModel_.getData();
+FORCE_INLINE void SpacePartitioningRANSAC::runHomography(
+    const DataMatrix& kData_, const models::Model& kModel_, const double& kInlierOutlierThreshold_,
+    std::vector<const std::vector<size_t>*>& selectedCells_, size_t& pointNumber_) {}
 
-            const double& kSourceCellWidth = additionalParameters[0], // The width of the source image
-                & kSourceCellHeight = additionalParameters[1], // The height of the source images
-                & kDestinationCellWidth = additionalParameters[2], // The width of the destination image
-                & kDestinationCellHeight = additionalParameters[3], // The height of the destination image
-                & kPartitionNumber = additionalParameters[4]; // The number of cells in the neighborhood structure along an axis
+FORCE_INLINE void SpacePartitioningRANSAC::runFundamentalMatrix(
+    const DataMatrix& kData_, const models::Model& kModel_, const double& kInlierOutlierThreshold_,
+    std::vector<const std::vector<size_t>*>& selectedCells_, size_t& pointNumber_) {
+  // The actual descriptor of the model
+  const auto& kModelData = kModel_.getData();
 
-            // The sizes of the cells along each axis
-            const double kCellSize1 = kSourceCellWidth * scaleSrc, 
-                kCellSize2 = kSourceCellHeight * scaleSrc,
-                kCellSize3 = kDestinationCellWidth * scaleDst,
-                kCellSize4 = kDestinationCellHeight * scaleDst;
+  const double &kSourceCellWidth = additionalParameters[0],  // The width of the source image
+      &kSourceCellHeight = additionalParameters[1],          // The height of the source images
+          &kDestinationCellWidth = additionalParameters[2],  // The width of the destination image
+              &kDestinationCellHeight =
+                  additionalParameters[3],  // The height of the destination image
+                  &kPartitionNumber = additionalParameters
+                      [4];  // The number of cells in the neighborhood structure along an axis
 
-            // Calculate the normalized image corners
-            double normDstX0 = offsetXDst,
-                normDstX1 = kCellSize3 * kPartitionNumber + offsetXDst,
-                normDstY0 = offsetYDst,
-                normDstY1 = kCellSize4 * kPartitionNumber + offsetYDst;
+  // The sizes of the cells along each axis
+  const double kCellSize1 = kSourceCellWidth * scaleSrc, kCellSize2 = kSourceCellHeight * scaleSrc,
+               kCellSize3 = kDestinationCellWidth * scaleDst,
+               kCellSize4 = kDestinationCellHeight * scaleDst;
 
-            //std::cout << normDstX0 << " " << normDstX1 << " " << normDstY0 << " " << normDstY1 << std::endl;
+  // Calculate the normalized image corners
+  double normDstX0 = offsetXDst, normDstX1 = kCellSize3 * kPartitionNumber + offsetXDst,
+         normDstY0 = offsetYDst, normDstY1 = kCellSize4 * kPartitionNumber + offsetYDst;
 
-            // Iterate through all cells and project their corners to the second image
-            const static std::vector<int> steps = { 0, 0,
-                0, 1,
-                1, 0,
-                1, 1 };
+  //std::cout << normDstX0 << " " << normDstX1 << " " << normDstY0 << " " << normDstY1 << std::endl;
 
-            // Filling the vectors with zeros
-            std::fill(std::begin(gridCornerMask), std::end(gridCornerMask), 0);
-            std::fill(std::begin(gridAngleMask), std::end(gridAngleMask), 0);
+  // Iterate through all cells and project their corners to the second image
+  const static std::vector<int> steps = {0, 0, 0, 1, 1, 0, 1, 1};
 
-            // Iterating through all cells in the neighborhood graph
-            for (const auto& [kCell, kValue] : neighborhoodGraph->getCells())
-            {
-                const auto& kPoints = kValue.first;
+  // Filling the vectors with zeros
+  std::fill(std::begin(gridCornerMask), std::end(gridCornerMask), 0);
+  std::fill(std::begin(gridAngleMask), std::end(gridAngleMask), 0);
 
-                // Checking if there are enough points in the cell to make the cell selection worth it.
-                if (kPoints.size() < 20)
-                {
-                    // If not, simply test all points from the cell and continue
-                    selectedCells_.emplace_back(&kPoints);
-                    pointNumber_ += kPoints.size();
-                    continue;
-                }
+  // Iterating through all cells in the neighborhood graph
+  for (const auto& [kCell, kValue] : neighborhoodGraph->getCells()) {
+    const auto& kPoints = kValue.first;
 
-                // The coordinates of the cell corners.
-                const auto& kCornerIndices = kValue.second;
-                // The index of the cell in the source image.
-                size_t cellIdx = kCornerIndices[0] * kPartitionNumber + kCornerIndices[1];
-                
-                // The parameters of the epipolar lines corresponding to the minimum and maximum angles
-                double &A1 = std::get<0>(gridCornerAngles[cellIdx]), 
-                    &B1 = std::get<1>(gridCornerAngles[cellIdx]),
-                    &C1 = std::get<2>(gridCornerAngles[cellIdx]),
-                    &A2 = std::get<3>(gridCornerAngles[cellIdx]), 
-                    &B2 = std::get<4>(gridCornerAngles[cellIdx]), 
-                    &C2 = std::get<5>(gridCornerAngles[cellIdx]);
+    // Checking if there are enough points in the cell to make the cell selection worth it.
+    if (kPoints.size() < 20) {
+      // If not, simply test all points from the cell and continue
+      selectedCells_.emplace_back(&kPoints);
+      pointNumber_ += kPoints.size();
+      continue;
+    }
 
-                // Iterate through the corners of the current cell
-                // TODO(danini): Handle the case when the epipole falls inside the image
-                if (!gridAngleMask[cellIdx])
-                {
-                    bool insideImage = false;
-                    double minAngle = std::numeric_limits<double>::max(),
-                        maxAngle = std::numeric_limits<double>::lowest();
-                    for (size_t stepIdx = 0; stepIdx < 8; stepIdx += 2)
-                    {
-                        // Stepping in the current direction from the currently selected corner
-                        size_t colIdx = kCornerIndices[0] + steps[stepIdx],
-                            rowIdx = kCornerIndices[1] + steps[stepIdx + 1];
-                            
-                        if (rowIdx >= kPartitionNumber ||
-                            colIdx >= kPartitionNumber)
-                            continue;
+    // The coordinates of the cell corners.
+    const auto& kCornerIndices = kValue.second;
+    // The index of the cell in the source image.
+    size_t cellIdx = kCornerIndices[0] * kPartitionNumber + kCornerIndices[1];
 
-                        // Calculating the selected cell's index
-                        const size_t kIdx2d = rowIdx * kPartitionNumber + colIdx;
+    // The parameters of the epipolar lines corresponding to the minimum and maximum angles
+    double &A1 = std::get<0>(gridCornerAngles[cellIdx]),
+           &B1 = std::get<1>(gridCornerAngles[cellIdx]),
+           &C1 = std::get<2>(gridCornerAngles[cellIdx]),
+           &A2 = std::get<3>(gridCornerAngles[cellIdx]),
+           &B2 = std::get<4>(gridCornerAngles[cellIdx]),
+           &C2 = std::get<5>(gridCornerAngles[cellIdx]);
 
-                        // Get the index of the corner's projection in the destination image
-                        auto& lineTuple = gridCornerCoordinates[kIdx2d];
-                        auto& angle = std::get<0>(lineTuple);
-                        auto& a2 = std::get<1>(lineTuple);
-                        auto& b2 = std::get<2>(lineTuple);
-                        auto& c2 = std::get<3>(lineTuple);
+    // Iterate through the corners of the current cell
+    // TODO(danini): Handle the case when the epipole falls inside the image
+    if (!gridAngleMask[cellIdx]) {
+      bool insideImage = false;
+      double minAngle = std::numeric_limits<double>::max(),
+             maxAngle = std::numeric_limits<double>::lowest();
+      for (size_t stepIdx = 0; stepIdx < 8; stepIdx += 2) {
+        // Stepping in the current direction from the currently selected corner
+        size_t colIdx = kCornerIndices[0] + steps[stepIdx],
+               rowIdx = kCornerIndices[1] + steps[stepIdx + 1];
 
-                        // If the corner hasn't yet been projected to the destination image
-                        if (!gridCornerMask[kIdx2d])
-                        {
-                            // Get the coordinates of the corner
-                            double kX1 = colIdx * kCellSize1 + offsetXSrc,
-                                kY1 = rowIdx * kCellSize2 + offsetYSrc;
+        if (rowIdx >= kPartitionNumber || colIdx >= kPartitionNumber) continue;
 
-                            // Move the corner by the threshold
-                            if (stepIdx == 0)
-                            {
-                                kX1 -= kInlierOutlierThreshold_;
-                                kY1 -= kInlierOutlierThreshold_;
-                            }
-                            else if (stepIdx == 2)
-                            {
-                                kX1 -= kInlierOutlierThreshold_;
-                                kY1 += kInlierOutlierThreshold_;
-                            }
-                            else if (stepIdx == 4)
-                            {
-                                kX1 += kInlierOutlierThreshold_;
-                                kY1 -= kInlierOutlierThreshold_;
-                            }
-                            else
-                            {
-                                kX1 += kInlierOutlierThreshold_;
-                                kY1 += kInlierOutlierThreshold_;
-                            }
+        // Calculating the selected cell's index
+        const size_t kIdx2d = rowIdx * kPartitionNumber + colIdx;
 
-                            // Project them by the estimated homography matrix
-                            a2 = kX1 * kModelData(0, 0) + kY1 * kModelData(0, 1) + kModelData(0, 2);
-                            b2 = kX1 * kModelData(1, 0) + kY1 * kModelData(1, 1) + kModelData(1, 2);
-                            c2 = kX1 * kModelData(2, 0) + kY1 * kModelData(2, 1) + kModelData(2, 2);
+        // Get the index of the corner's projection in the destination image
+        auto& lineTuple = gridCornerCoordinates[kIdx2d];
+        auto& angle = std::get<0>(lineTuple);
+        auto& a2 = std::get<1>(lineTuple);
+        auto& b2 = std::get<2>(lineTuple);
+        auto& c2 = std::get<3>(lineTuple);
 
-                            // Angle of direction vector v
-                            // n = [a2, b2]
-                            // v = [-b2, a2]
-                            angle = std::atan2(a2, b2);
+        // If the corner hasn't yet been projected to the destination image
+        if (!gridCornerMask[kIdx2d]) {
+          // Get the coordinates of the corner
+          double kX1 = colIdx * kCellSize1 + offsetXSrc, kY1 = rowIdx * kCellSize2 + offsetYSrc;
 
-                            // Note that the corner has been already projected
-                            gridCornerMask[kIdx2d] = true;
+          // Move the corner by the threshold
+          if (stepIdx == 0) {
+            kX1 -= kInlierOutlierThreshold_;
+            kY1 -= kInlierOutlierThreshold_;
+          } else if (stepIdx == 2) {
+            kX1 -= kInlierOutlierThreshold_;
+            kY1 += kInlierOutlierThreshold_;
+          } else if (stepIdx == 4) {
+            kX1 += kInlierOutlierThreshold_;
+            kY1 -= kInlierOutlierThreshold_;
+          } else {
+            kX1 += kInlierOutlierThreshold_;
+            kY1 += kInlierOutlierThreshold_;
+          }
 
-                            // Check if the line intersects the image borders
-                            // a * x + b * y + c
-                            if (!insideImage)
-                            {
-                                double yLeft = -(a2 * normDstX0 + c2) / b2;
-                                double yRight = -(a2 * normDstX1 + c2) / b2;
+          // Project them by the estimated homography matrix
+          a2 = kX1 * kModelData(0, 0) + kY1 * kModelData(0, 1) + kModelData(0, 2);
+          b2 = kX1 * kModelData(1, 0) + kY1 * kModelData(1, 1) + kModelData(1, 2);
+          c2 = kX1 * kModelData(2, 0) + kY1 * kModelData(2, 1) + kModelData(2, 2);
 
-                                if (yLeft >= normDstY0 && yLeft <= normDstY1 ||
-                                    yRight >= normDstY0 && yRight <= normDstY1)
-                                    insideImage = true;
-                                else
-                                {
-                                    double xTop = -(b2 * normDstY0 + c2) / a2;
-                                    double xBottom = -(b2 * normDstY1 + c2) / a2;
+          // Angle of direction vector v
+          // n = [a2, b2]
+          // v = [-b2, a2]
+          angle = std::atan2(a2, b2);
 
-                                    if (xTop >= normDstX0 && xTop <= normDstX1 ||
-                                        xBottom >= normDstX0 && xBottom <= normDstX1)
-                                        insideImage = true;
-                                }
-                            }
-                        }
+          // Note that the corner has been already projected
+          gridCornerMask[kIdx2d] = true;
 
-                        // Save the epipolar line's parameters if the angle is the new mininum
-                        if (angle < minAngle)
-                        {
-                            minAngle = angle;
-                            A1 = a2;
-                            B1 = b2;
-                            C1 = c2;
-                        }
+          // Check if the line intersects the image borders
+          // a * x + b * y + c
+          if (!insideImage) {
+            double yLeft = -(a2 * normDstX0 + c2) / b2;
+            double yRight = -(a2 * normDstX1 + c2) / b2;
 
-                        // Save the epipolar line's parameters if the angle is the new maximum
-                        if (angle > maxAngle)
-                        {
-                            maxAngle = angle;
-                            A2 = a2;
-                            B2 = b2;
-                            C2 = c2;
-                        }
-                    }
+            if (yLeft >= normDstY0 && yLeft <= normDstY1 ||
+                yRight >= normDstY0 && yRight <= normDstY1)
+              insideImage = true;
+            else {
+              double xTop = -(b2 * normDstY0 + c2) / a2;
+              double xBottom = -(b2 * normDstY1 + c2) / a2;
 
-                    // Note that the cell has already been processed
-                    gridAngleMask[cellIdx] = true;
-
-                    if (!insideImage)
-                        continue;
-                }
-
-                // Iterate through the corners of the cell and check if any of the corners fall 
-                // between the two selected epipolar lines.
-                double distance1, distance2;
-                bool overlaps = false;
-                for (size_t stepIdx = 0; stepIdx < 8; stepIdx += 2)
-                {
-                    // Get the coordinates of the corner
-                    double kX2 = (kCornerIndices[2] + steps[stepIdx]) * kCellSize3 + offsetXDst,
-                        kY2 = (kCornerIndices[3] + steps[stepIdx + 1]) * kCellSize4 + offsetYDst;
-
-                    distance1 = A1 * kX2 + B1 * kY2 + C1;
-                    distance2 = A2 * kX2 + B2 * kY2 + C2;
-
-                    // If the distance sign is different, the point falls between the lines.
-                    if (distance1 * distance2 <= 0)
-                    {
-                        overlaps = true;
-                        break;
-                    }
-                }
-
-                if (!overlaps)
-                {
-                    // Get the coordinates of the corner
-                    double kX20 = (kCornerIndices[2]) * kCellSize3 + offsetXDst,
-                        kY20 = (kCornerIndices[3]) * kCellSize4 + offsetYDst,
-                        kX21 = (kCornerIndices[2] + 1) * kCellSize3 + offsetXDst,
-                        kY21 = (kCornerIndices[3] + 1) * kCellSize4 + offsetYDst;
-
-                    distance1 = A1 * kX20 + B1 * kY20 + C1;
-                    distance2 = A1 * kX21 + B1 * kY20 + C1;
-
-                    if (distance1 * distance2)
-                        overlaps = true;
-                    else
-                    {
-                        distance2 = A1 * kX20 + B1 * kY21 + C1;
-                        if (distance1 * distance2)
-                            overlaps = true;
-                        else
-                        {
-                            distance1 = A2 * kX20 + B2 * kY20 + C2;
-                            distance2 = A2 * kX21 + B2 * kY20 + C2;
-
-                            if (distance1 * distance2)
-                                overlaps = true;
-                            else
-                            {
-                                distance2 = A2 * kX20 + B2 * kY21 + C2;
-                                if (distance1 * distance2)
-                                    overlaps = true;
-                            }
-                        }
-                    }
-                }
-
-                if (overlaps)
-                {
-                    // Store the points in the cell to be tested
-                    selectedCells_.emplace_back(&kPoints);
-                    pointNumber_ += kPoints.size();
-                }
+              if (xTop >= normDstX0 && xTop <= normDstX1 ||
+                  xBottom >= normDstX0 && xBottom <= normDstX1)
+                insideImage = true;
             }
+          }
         }
 
-        /*template <typename _Estimator,
+        // Save the epipolar line's parameters if the angle is the new mininum
+        if (angle < minAngle) {
+          minAngle = angle;
+          A1 = a2;
+          B1 = b2;
+          C1 = c2;
+        }
+
+        // Save the epipolar line's parameters if the angle is the new maximum
+        if (angle > maxAngle) {
+          maxAngle = angle;
+          A2 = a2;
+          B2 = b2;
+          C2 = c2;
+        }
+      }
+
+      // Note that the cell has already been processed
+      gridAngleMask[cellIdx] = true;
+
+      if (!insideImage) continue;
+    }
+
+    // Iterate through the corners of the cell and check if any of the corners fall
+    // between the two selected epipolar lines.
+    double distance1, distance2;
+    bool overlaps = false;
+    for (size_t stepIdx = 0; stepIdx < 8; stepIdx += 2) {
+      // Get the coordinates of the corner
+      double kX2 = (kCornerIndices[2] + steps[stepIdx]) * kCellSize3 + offsetXDst,
+             kY2 = (kCornerIndices[3] + steps[stepIdx + 1]) * kCellSize4 + offsetYDst;
+
+      distance1 = A1 * kX2 + B1 * kY2 + C1;
+      distance2 = A2 * kX2 + B2 * kY2 + C2;
+
+      // If the distance sign is different, the point falls between the lines.
+      if (distance1 * distance2 <= 0) {
+        overlaps = true;
+        break;
+      }
+    }
+
+    if (!overlaps) {
+      // Get the coordinates of the corner
+      double kX20 = (kCornerIndices[2]) * kCellSize3 + offsetXDst,
+             kY20 = (kCornerIndices[3]) * kCellSize4 + offsetYDst,
+             kX21 = (kCornerIndices[2] + 1) * kCellSize3 + offsetXDst,
+             kY21 = (kCornerIndices[3] + 1) * kCellSize4 + offsetYDst;
+
+      distance1 = A1 * kX20 + B1 * kY20 + C1;
+      distance2 = A1 * kX21 + B1 * kY20 + C1;
+
+      if (distance1 * distance2)
+        overlaps = true;
+      else {
+        distance2 = A1 * kX20 + B1 * kY21 + C1;
+        if (distance1 * distance2)
+          overlaps = true;
+        else {
+          distance1 = A2 * kX20 + B2 * kY20 + C2;
+          distance2 = A2 * kX21 + B2 * kY20 + C2;
+
+          if (distance1 * distance2)
+            overlaps = true;
+          else {
+            distance2 = A2 * kX20 + B2 * kY21 + C2;
+            if (distance1 * distance2) overlaps = true;
+          }
+        }
+      }
+    }
+
+    if (overlaps) {
+      // Store the points in the cell to be tested
+      selectedCells_.emplace_back(&kPoints);
+      pointNumber_ += kPoints.size();
+    }
+  }
+}
+
+/*template <typename _Estimator,
             typename _NeighborhoodStructure>
             OLGA_INLINE void SpacePartitioningRANSAC<_Estimator, _NeighborhoodStructure>::runRigidTransformation(
                 const cv::Mat& kCorrespondences_,
@@ -657,10 +596,10 @@ namespace superansac
 			std::vector<const std::vector<size_t>*>& selectedCells_,
 			size_t& pointNumber_)
         {*/
-            /*
+/*
                 Selecting cells based on mutual visibility
             */
-            /*constexpr double kDeterminantEpsilon = 1e-3;
+/*constexpr double kDeterminantEpsilon = 1e-3;
             const Eigen::Matrix3d& descriptor = kModelData;
             const double kDeterminant = descriptor.determinant();
             if (abs(kDeterminant) < kDeterminantEpsilon)
@@ -813,6 +752,6 @@ namespace superansac
                     }
                 }
             }*/
-        //}
-	}
-}
+//}
+}  // namespace inlier_selector
+}  // namespace superansac

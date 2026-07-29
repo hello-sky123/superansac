@@ -44,39 +44,38 @@
 
 namespace superansac {
 namespace local_optimization {
-    
-    // Enum defining available local optimization types
-    enum class LocalOptimizationType {
-        None,
-        LSQ,
-        IRLS,
-        NestedRANSAC,
-        GCRANSAC,
-        IteratedLMEDS,
-        CrossValidation
-    };
 
-    // Factory function to create samplers
-    FORCE_INLINE std::unique_ptr<LocalOptimizer> createLocalOptimizer(const LocalOptimizationType kType_) 
-    {
-        switch (kType_) 
-        {
-            case LocalOptimizationType::LSQ:
-                return std::make_unique<LeastSquaresOptimizer>();
-            case LocalOptimizationType::IRLS:
-                return std::make_unique<IRLSOptimizer>();
-            case LocalOptimizationType::NestedRANSAC:
-                return std::make_unique<NestedRANSACOptimizer>();
-            case LocalOptimizationType::GCRANSAC:
-                return std::make_unique<GraphCutRANSACOptimizer>();
-            case LocalOptimizationType::IteratedLMEDS:
-                return std::make_unique<IteratedLMEDSOptimizer>();
-            case LocalOptimizationType::CrossValidation:
-                return std::make_unique<CrossValidationOptimizer>();
-            default:
-                throw std::invalid_argument("Unknown Local Optimizer Type");
-        }
-    }
+// Enum defining available local optimization types
+enum class LocalOptimizationType {
+  None,
+  LSQ,
+  IRLS,
+  NestedRANSAC,
+  GCRANSAC,
+  IteratedLMEDS,
+  CrossValidation
+};
 
+// Factory function to create samplers
+FORCE_INLINE std::unique_ptr<LocalOptimizer> createLocalOptimizer(
+    const LocalOptimizationType kType_) {
+  switch (kType_) {
+    case LocalOptimizationType::LSQ:
+      return std::make_unique<LeastSquaresOptimizer>();
+    case LocalOptimizationType::IRLS:
+      return std::make_unique<IRLSOptimizer>();
+    case LocalOptimizationType::NestedRANSAC:
+      return std::make_unique<NestedRANSACOptimizer>();
+    case LocalOptimizationType::GCRANSAC:
+      return std::make_unique<GraphCutRANSACOptimizer>();
+    case LocalOptimizationType::IteratedLMEDS:
+      return std::make_unique<IteratedLMEDSOptimizer>();
+    case LocalOptimizationType::CrossValidation:
+      return std::make_unique<CrossValidationOptimizer>();
+    default:
+      throw std::invalid_argument("Unknown Local Optimizer Type");
+  }
 }
-}
+
+}  // namespace local_optimization
+}  // namespace superansac

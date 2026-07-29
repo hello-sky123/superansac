@@ -39,34 +39,25 @@
 #include "../utils/types.h"
 #include "../models/model.h"
 
-namespace superansac 
-{
-	namespace inlier_selector
-	{
-		class AbstractInlierSelector
-		{
-		protected:
-			models::Types modelType;
+namespace superansac {
+namespace inlier_selector {
+class AbstractInlierSelector {
+ protected:
+  models::Types modelType;
 
-		public:
-			AbstractInlierSelector() : modelType(models::Types::Homography)
-			{
-			}
+ public:
+  AbstractInlierSelector() : modelType(models::Types::Homography) {}
 
-            virtual ~AbstractInlierSelector() {}
+  virtual ~AbstractInlierSelector() {}
 
-			void setModelType(models::Types modelType_)
-			{
-				modelType = modelType_;
-			}
+  void setModelType(models::Types modelType_) { modelType = modelType_; }
 
-            // The function that runs the model-based inlier selector
-            virtual void run(
-				const DataMatrix &kData_,
-				const models::Model &kModel_,
-				const scoring::AbstractScoring *kScoring_,
-                std::vector<const std::vector<size_t>*>& selectedCells_, // The indices of the points selected
-                size_t& pointNumber_) = 0; 
-		};
-	}
-}
+  // The function that runs the model-based inlier selector
+  virtual void run(const DataMatrix& kData_, const models::Model& kModel_,
+                   const scoring::AbstractScoring* kScoring_,
+                   std::vector<const std::vector<size_t>*>&
+                       selectedCells_,  // The indices of the points selected
+                   size_t& pointNumber_) = 0;
+};
+}  // namespace inlier_selector
+}  // namespace superansac

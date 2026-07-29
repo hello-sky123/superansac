@@ -39,49 +39,38 @@
 #include "../utils/types.h"
 #include "../models/model.h"
 
-namespace superansac 
-{
-	namespace camera
-	{
-		class AbstractCamera
-		{
-		protected:
-            std::vector<double> parameters;
+namespace superansac {
+namespace camera {
+class AbstractCamera {
+ protected:
+  std::vector<double> parameters;
 
-		public:
-			AbstractCamera(const std::vector<double> &kParams_) : 
-                parameters(kParams_)
-			{
-			}
+ public:
+  AbstractCamera(const std::vector<double>& kParams_) : parameters(kParams_) {}
 
-            virtual ~AbstractCamera() {}
+  virtual ~AbstractCamera() {}
 
-			// Project a 2D point from pixel to image coordinates
-            virtual void fromPixelToImageCoordinates(
-				const DataMatrix &kData_,
-				DataMatrix &kNormalizedData_) const = 0; 
-			
-			// Project a 2D point from pixel to image coordinates
-            virtual void fromImageToPixelCoordinates(
-				const std::vector<Eigen::Vector2d> &kNormalizedData_,
-				std::vector<Eigen::Vector2d> &kData_) const = 0;
+  // Project a 2D point from pixel to image coordinates
+  virtual void fromPixelToImageCoordinates(const DataMatrix& kData_,
+                                           DataMatrix& kNormalizedData_) const = 0;
 
-			// Project a 2D point from pixel to image coordinates
-            virtual void fromImageToPixelCoordinates(
-				const DataMatrix &kNormalizedData_,
-				DataMatrix &kData_) const = 0; 
+  // Project a 2D point from pixel to image coordinates
+  virtual void fromImageToPixelCoordinates(const std::vector<Eigen::Vector2d>& kNormalizedData_,
+                                           std::vector<Eigen::Vector2d>& kData_) const = 0;
 
-            virtual bool validateParameters(const std::vector<double> &kParams_) const = 0; 
-            virtual double normalizeThreshold(double kThreshold_) const = 0; 
-            virtual double unnormalizeThreshold(double kThreshold_) const = 0; 
-			virtual void rescale(double kScale_) = 0;
-			virtual double focalLength() const = 0; 
-			virtual size_t getModelId() const = 0;
+  // Project a 2D point from pixel to image coordinates
+  virtual void fromImageToPixelCoordinates(const DataMatrix& kNormalizedData_,
+                                           DataMatrix& kData_) const = 0;
 
-            const std::vector<double> &getParameters() { return parameters; }
-			std::vector<double> &getMutableParameters() { return parameters; }
+  virtual bool validateParameters(const std::vector<double>& kParams_) const = 0;
+  virtual double normalizeThreshold(double kThreshold_) const = 0;
+  virtual double unnormalizeThreshold(double kThreshold_) const = 0;
+  virtual void rescale(double kScale_) = 0;
+  virtual double focalLength() const = 0;
+  virtual size_t getModelId() const = 0;
 
-		};
-	}
-}
-
+  const std::vector<double>& getParameters() { return parameters; }
+  std::vector<double>& getMutableParameters() { return parameters; }
+};
+}  // namespace camera
+}  // namespace superansac

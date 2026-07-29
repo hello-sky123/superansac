@@ -41,23 +41,19 @@
 namespace superansac {
 namespace inlier_selector {
 
-    // Enum defining available sampler types
-    enum class InlierSelectorType {
-        None,
-        SpacePartitioningRANSAC
-    };
+// Enum defining available sampler types
+enum class InlierSelectorType { None, SpacePartitioningRANSAC };
 
-    // Factory function to create samplers
-    FORCE_INLINE std::unique_ptr<AbstractInlierSelector> createInlierSelector(const InlierSelectorType kType_) 
-    {
-        switch (kType_) 
-        {
-            case InlierSelectorType::SpacePartitioningRANSAC:
-                return std::make_unique<SpacePartitioningRANSAC>();
-            default:
-                throw std::invalid_argument("Unknown Inlier Selector Type");
-        }
-    }
+// Factory function to create samplers
+FORCE_INLINE std::unique_ptr<AbstractInlierSelector> createInlierSelector(
+    const InlierSelectorType kType_) {
+  switch (kType_) {
+    case InlierSelectorType::SpacePartitioningRANSAC:
+      return std::make_unique<SpacePartitioningRANSAC>();
+    default:
+      throw std::invalid_argument("Unknown Inlier Selector Type");
+  }
+}
 
-}
-}
+}  // namespace inlier_selector
+}  // namespace superansac

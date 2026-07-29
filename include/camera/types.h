@@ -41,39 +41,33 @@
 namespace superansac {
 namespace camera {
 
-    // Enum defining available sampler types
-    enum class CameraType {
-        SimpleRadial,
-        SimplePinhole
-    };
-    
-    // Factory function to create samplers
-    FORCE_INLINE std::unique_ptr<AbstractCamera> createCamera(const CameraType kType_, const std::vector<double> &kParams_) 
-    {
-        switch (kType_) 
-        {
-            case CameraType::SimpleRadial:
-                return std::make_unique<SimpleRadialCamera>(kParams_);
-            case CameraType::SimplePinhole:
-                return std::make_unique<SimplePinholeCamera>(kParams_);
-            default:
-                throw std::invalid_argument("Unknown Camera Type");
-        }
-    }
-    
-    // Factory function to create samplers
-    FORCE_INLINE std::unique_ptr<AbstractCamera> createIdentityCamera(const CameraType kType_) 
-    {
-        switch (kType_) 
-        {
-            case CameraType::SimpleRadial:
-                return std::make_unique<SimpleRadialCamera>(std::vector<double>({ 1.0, 0.0, 0.0, 0.0 }));
-            case CameraType::SimplePinhole:
-                return std::make_unique<SimplePinholeCamera>(std::vector<double>({ 1.0, 0.0, 0.0 }));
-            default:
-                throw std::invalid_argument("Unknown Camera Type");
-        }
-    }
+// Enum defining available sampler types
+enum class CameraType { SimpleRadial, SimplePinhole };
 
+// Factory function to create samplers
+FORCE_INLINE std::unique_ptr<AbstractCamera> createCamera(const CameraType kType_,
+                                                          const std::vector<double>& kParams_) {
+  switch (kType_) {
+    case CameraType::SimpleRadial:
+      return std::make_unique<SimpleRadialCamera>(kParams_);
+    case CameraType::SimplePinhole:
+      return std::make_unique<SimplePinholeCamera>(kParams_);
+    default:
+      throw std::invalid_argument("Unknown Camera Type");
+  }
 }
+
+// Factory function to create samplers
+FORCE_INLINE std::unique_ptr<AbstractCamera> createIdentityCamera(const CameraType kType_) {
+  switch (kType_) {
+    case CameraType::SimpleRadial:
+      return std::make_unique<SimpleRadialCamera>(std::vector<double>({1.0, 0.0, 0.0, 0.0}));
+    case CameraType::SimplePinhole:
+      return std::make_unique<SimplePinholeCamera>(std::vector<double>({1.0, 0.0, 0.0}));
+    default:
+      throw std::invalid_argument("Unknown Camera Type");
+  }
 }
+
+}  // namespace camera
+}  // namespace superansac

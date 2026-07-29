@@ -39,57 +39,38 @@ namespace superansac {
 namespace scoring {
 
 class Score {
-    public:
-        Score() :
-			inlierNumber(0),
-			value(std::numeric_limits<double>::lowest())
-		{ }
-        
-        Score(const size_t kInlierNumber_, const double kValue_) :
-			inlierNumber(kInlierNumber_),
-			value(kValue_)
-		{ }
+ public:
+  Score() : inlierNumber(0), value(std::numeric_limits<double>::lowest()) {}
 
-		FORCE_INLINE bool operator<(const Score& score_) const
-		{
-			return
-                //inlierNumber < score_.inlierNumber ||
-                value < score_.value;
-		}
+  Score(const size_t kInlierNumber_, const double kValue_)
+      : inlierNumber(kInlierNumber_), value(kValue_) {}
 
-		FORCE_INLINE bool operator>(const Score& score_) const
-		{
-			return //inlierNumber > score_.inlierNumber ||
-                value > score_.value;
-		}
+  FORCE_INLINE bool operator<(const Score& score_) const {
+    return
+        //inlierNumber < score_.inlierNumber ||
+        value < score_.value;
+  }
 
-        FORCE_INLINE double getValue() const
-        {
-            return value;
-        }
+  FORCE_INLINE bool operator>(const Score& score_) const {
+    return  //inlierNumber > score_.inlierNumber ||
+        value > score_.value;
+  }
 
-        FORCE_INLINE size_t getInlierNumber() const
-        {
-            return inlierNumber;
-        }
+  FORCE_INLINE double getValue() const { return value; }
 
-        void setValue(const double kValue_)
-        {
-            value = kValue_;
-        }
+  FORCE_INLINE size_t getInlierNumber() const { return inlierNumber; }
 
-        void setInlierNumber(const size_t kInlierNumber_)
-        {
-            inlierNumber = kInlierNumber_;
-        }
+  void setValue(const double kValue_) { value = kValue_; }
 
-    protected:
-		/* Number of inliers, rectangular gain function */
-		size_t inlierNumber;
+  void setInlierNumber(const size_t kInlierNumber_) { inlierNumber = kInlierNumber_; }
 
-		/* Score */
-		double value;
+ protected:
+  /* Number of inliers, rectangular gain function */
+  size_t inlierNumber;
+
+  /* Score */
+  double value;
 };
 
-}
-}
+}  // namespace scoring
+}  // namespace superansac

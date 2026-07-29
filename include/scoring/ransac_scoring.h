@@ -44,177 +44,153 @@
 namespace superansac {
 namespace scoring {
 
-class RANSACScoring : public AbstractScoring
-{
-    public:
-        // Constructor 
-        RANSACScoring() {}
+class RANSACScoring : public AbstractScoring {
+ public:
+  // Constructor
+  RANSACScoring() {}
 
-        // Destructor
-        ~RANSACScoring() {}
-        
-        FORCE_INLINE void updateSPRTParameters(const Score& currentBest, 
-            int iterationIndex, 
-            size_t totalPoints)
-        {
-            
+  // Destructor
+  ~RANSACScoring() {}
+
+  FORCE_INLINE void updateSPRTParameters(const Score& currentBest, int iterationIndex,
+                                         size_t totalPoints) {}
+
+  // Set the threshold
+  FORCE_INLINE void setThreshold(const double kThreshold_) {
+    threshold = kThreshold_;
+    squaredThreshold = threshold * threshold;
+  }
+
+  // Sample function
+  FORCE_INLINE Score score(const DataMatrix& kData_,                 // Data matrix
+                           const models::Model& kModel_,             // The model to be scored
+                           const estimator::Estimator* kEstimator_,  // Estimator
+                           std::vector<size_t>& inliers_,            // Inlier indices
+                           const bool kStoreInliers_ = true, const Score& kBestScore_ = Score(),
+                           std::vector<const std::vector<size_t>*>* kPotentialInlierSets_ =
+                               nullptr) const  // The potential inlier sets from the inlier selector
+  {
+    // Create a static empty Score
+    static const Score kEmptyScore;
+    // The number of points
+    const int kPointNumber = kData_.rows();
+    // The squared residual
+    double squaredResidual;
+    // Score and inlier number
+    int inlierNumber = 0;
+    // The score of the previous best model
+    const double kBestInlierNumber = kBestScore_.getInlierNumber();
+
+    // Iterate through all points, calculate the squaredResiduals and store the points as inliers if needed.
+    if (kPotentialInlierSets_ != nullptr) {
+      size_t testedPointNumber = 0;
+      for (const auto& potentialInlierSet : *kPotentialInlierSets_) {
+        for (const auto& pointIdx : *potentialInlierSet) {
+          // Calculate the point-to-model residual
+          squaredResidual = kEstimator_->squaredResidual(kData_.row(pointIdx).data(), kModel_);
+
+          // If the residual is smaller than the threshold, store it as an inlier and
+          // increase the score.
+          if (squaredResidual < squaredThreshold) {
+            if (kStoreInliers_)  // Store the point as an inlier if needed.
+              inliers_.emplace_back(pointIdx);
+
+            // Increase the inlier number
+            ++inlierNumber;
+          }
+
+          // Interrupt if there is no chance of being better than the best model
+          if (kPointNumber - testedPointNumber + inlierNumber < kBestInlierNumber)
+            return kEmptyScore;
+          ++testedPointNumber;
         }
+      }
+    } else {
+      // Iterate through all points in growing blocks: residuals for each
+      // block are computed with one batched virtual call, then consumed by
+      // the unchanged sequential logic (identical decisions/arithmetic).
+      constexpr int kMaxBlockSize = 256;
+      double sqrBuffer[kMaxBlockSize];
+      int blockSize = 16;
+      for (int base = 0; base < kPointNumber;
+           base += blockSize, blockSize = std::min(blockSize << 1, kMaxBlockSize)) {
+        const int kCount = std::min(blockSize, kPointNumber - base);
+        kEstimator_->squaredResiduals(kData_, kModel_, base, kCount, sqrBuffer);
+        for (int j = 0; j < kCount; ++j) {
+          const int pointIdx = base + j;
+          squaredResidual = sqrBuffer[j];
 
-        // Set the threshold
-        FORCE_INLINE void setThreshold(const double kThreshold_)
-        {
-            threshold = kThreshold_;
-            squaredThreshold = threshold * threshold;
+          // If the residual is smaller than the threshold, store it as an inlier and
+          // increase the score.
+          if (squaredResidual < squaredThreshold) {
+            if (kStoreInliers_)  // Store the point as an inlier if needed.
+              inliers_.emplace_back(pointIdx);
+
+            // Increase the inlier number
+            ++inlierNumber;
+          }
+
+          // Interrupt if there is no chance of being better than the best model
+          if (kPointNumber - pointIdx + inlierNumber < kBestInlierNumber) return kEmptyScore;
         }
+      }
+    }
 
-        // Sample function
-        FORCE_INLINE Score score(
-            const DataMatrix &kData_, // Data matrix
-            const models::Model &kModel_, // The model to be scored
-            const estimator::Estimator *kEstimator_, // Estimator
-            std::vector<size_t> &inliers_, // Inlier indices
-            const bool kStoreInliers_ = true,
-            const Score& kBestScore_ = Score(),
-            std::vector<const std::vector<size_t>*> *kPotentialInlierSets_ = nullptr) const // The potential inlier sets from the inlier selector
-        {   
-            // Create a static empty Score
-            static const Score kEmptyScore;
-            // The number of points
-            const int kPointNumber = kData_.rows();
-            // The squared residual
-            double squaredResidual;
-            // Score and inlier number
-            int inlierNumber = 0;
-            // The score of the previous best model
-            const double kBestInlierNumber = kBestScore_.getInlierNumber();
+    return Score(inlierNumber, inlierNumber);
+  }
 
-            // Iterate through all points, calculate the squaredResiduals and store the points as inliers if needed.
-            if (kPotentialInlierSets_ != nullptr)
-            {
-                size_t testedPointNumber = 0;
-                for (const auto &potentialInlierSet : *kPotentialInlierSets_)
-                {
-                    for (const auto &pointIdx : *potentialInlierSet)
-                    {
-                        // Calculate the point-to-model residual
-                        squaredResidual =
-                            kEstimator_->squaredResidual(kData_.row(pointIdx).data(),
-                                kModel_);
+  // Get weights for the points
+  FORCE_INLINE void getWeights(
+      const DataMatrix& kData_,                              // Data matrix
+      const models::Model& kModel_,                          // The model to be scored
+      const estimator::Estimator* kEstimator_,               // Estimator
+      std::vector<double>& weights_,                         // The weights of the points
+      const std::vector<size_t>* kIndices_ = nullptr) const  // The indices of the points
+  {
+    if (kIndices_ == nullptr) {
+      // The number of points
+      const int kPointNumber = kData_.rows();
+      // The squared residual
+      double squaredResidual;
+      // Allocate memory for the weights
+      weights_.resize(kPointNumber);
 
-                        // If the residual is smaller than the threshold, store it as an inlier and
-                        // increase the score.
-                        if (squaredResidual < squaredThreshold)
-                        {
-                            if (kStoreInliers_) // Store the point as an inlier if needed.
-                                inliers_.emplace_back(pointIdx);
+      // One batched call for all residuals, then transform in place.
+      kEstimator_->squaredResiduals(kData_, kModel_, 0, kPointNumber, weights_.data());
+      for (int pointIdx = 0; pointIdx < kPointNumber; ++pointIdx) {
+        squaredResidual = weights_[pointIdx];
 
-                            // Increase the inlier number
-                            ++inlierNumber;
-                        }
+        // If the residual is smaller than the threshold, store it as an inlier and
+        // increase the score.
+        if (squaredResidual < squaredThreshold)
+          weights_[pointIdx] = 1.0;
+        else
+          weights_[pointIdx] = 0.0;
+      }
+    } else {
+      // The number of points
+      const int kPointNumber = kIndices_->size();
+      // The squared residual
+      double squaredResidual;
+      // Allocate memory for the weights
+      weights_.resize(kPointNumber);
 
-                        // Interrupt if there is no chance of being better than the best model
-                        if (kPointNumber - testedPointNumber + inlierNumber < kBestInlierNumber)
-                            return kEmptyScore;
-                        ++testedPointNumber;
-                    }
-                }
-            } else
-            {
-                // Iterate through all points in growing blocks: residuals for each
-                // block are computed with one batched virtual call, then consumed by
-                // the unchanged sequential logic (identical decisions/arithmetic).
-                constexpr int kMaxBlockSize = 256;
-                double sqrBuffer[kMaxBlockSize];
-                int blockSize = 16;
-                for (int base = 0; base < kPointNumber;
-                     base += blockSize, blockSize = std::min(blockSize << 1, kMaxBlockSize))
-                {
-                    const int kCount = std::min(blockSize, kPointNumber - base);
-                    kEstimator_->squaredResiduals(kData_, kModel_, base, kCount, sqrBuffer);
-                for (int j = 0; j < kCount; ++j)
-                {
-                    const int pointIdx = base + j;
-                    squaredResidual = sqrBuffer[j];
+      // Iterate through all points, calculate the squaredResiduals and store the points as inliers if needed.
+      for (int pointIdx = 0; pointIdx < kPointNumber; ++pointIdx) {
+        // Calculate the point-to-model residual
+        squaredResidual =
+            kEstimator_->squaredResidual(kData_.row((*kIndices_)[pointIdx]).data(), kModel_);
 
-                    // If the residual is smaller than the threshold, store it as an inlier and
-                    // increase the score.
-                    if (squaredResidual < squaredThreshold)
-                    {
-                        if (kStoreInliers_) // Store the point as an inlier if needed.
-                            inliers_.emplace_back(pointIdx);
-
-                        // Increase the inlier number
-                        ++inlierNumber;
-                    }
-
-                    // Interrupt if there is no chance of being better than the best model
-                    if (kPointNumber - pointIdx + inlierNumber < kBestInlierNumber)
-                        return kEmptyScore;
-                }
-                }
-            }
-
-            return Score(inlierNumber, inlierNumber);
-        }
-
-        // Get weights for the points
-        FORCE_INLINE void getWeights(
-            const DataMatrix &kData_, // Data matrix
-            const models::Model &kModel_, // The model to be scored
-            const estimator::Estimator *kEstimator_, // Estimator
-            std::vector<double> &weights_, // The weights of the points
-            const std::vector<size_t> *kIndices_ = nullptr) const  // The indices of the points
-        {
-            if (kIndices_ == nullptr)
-            {
-                // The number of points
-                const int kPointNumber = kData_.rows();
-                // The squared residual
-                double squaredResidual;
-                // Allocate memory for the weights
-                weights_.resize(kPointNumber);
-
-                // One batched call for all residuals, then transform in place.
-                kEstimator_->squaredResiduals(kData_, kModel_, 0, kPointNumber, weights_.data());
-                for (int pointIdx = 0; pointIdx < kPointNumber; ++pointIdx)
-                {
-                    squaredResidual = weights_[pointIdx];
-
-                    // If the residual is smaller than the threshold, store it as an inlier and
-                    // increase the score.
-                    if (squaredResidual < squaredThreshold)
-                        weights_[pointIdx] = 1.0;
-                    else
-                        weights_[pointIdx] = 0.0;
-                }
-            }
-            else
-            {
-                // The number of points
-                const int kPointNumber = kIndices_->size();
-                // The squared residual
-                double squaredResidual;
-                // Allocate memory for the weights
-                weights_.resize(kPointNumber);
-
-                // Iterate through all points, calculate the squaredResiduals and store the points as inliers if needed.
-                for (int pointIdx = 0; pointIdx < kPointNumber; ++pointIdx)
-                {
-                    // Calculate the point-to-model residual
-                    squaredResidual =
-                        kEstimator_->squaredResidual(kData_.row((*kIndices_)[pointIdx]).data(),
-                            kModel_);
-
-                    // If the residual is smaller than the threshold, store it as an inlier and
-                    // increase the score.
-                    if (squaredResidual < squaredThreshold)
-                        weights_[pointIdx] = 1.0;
-                    else
-                        weights_[pointIdx] = 0.0;
-                }
-            }
-        }
+        // If the residual is smaller than the threshold, store it as an inlier and
+        // increase the score.
+        if (squaredResidual < squaredThreshold)
+          weights_[pointIdx] = 1.0;
+        else
+          weights_[pointIdx] = 0.0;
+      }
+    }
+  }
 };
 
-}
-}
+}  // namespace scoring
+}  // namespace superansac

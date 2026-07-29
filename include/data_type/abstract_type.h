@@ -35,11 +35,10 @@
 
 #include "../utils.h"
 
-class AbstractData
-{
-    public:
-        // Constructor 
-        AbstractData() {}
-        // Destructor
-        virtual ~AbstractData() {}
+class AbstractData {
+ public:
+  // Constructor
+  AbstractData() {}
+  // Destructor
+  virtual ~AbstractData() {}
 };

@@ -44,115 +44,88 @@
 #include "numerical_optimizer/camera_pose.h"
 #include "numerical_optimizer/essential.h"
 
-namespace superansac
+namespace superansac {
+namespace estimator {
+namespace solver {
+// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
+class PnPBundleAdjustmentSolver : public AbstractSolver {
+ protected:
+  poselib::BundleOptions options;
+  superansac::camera::AbstractCamera* camera;
+  const EPnPSolver epnpSolver;
+
+ public:
+  PnPBundleAdjustmentSolver() : camera(nullptr) {}
+
+  ~PnPBundleAdjustmentSolver() {}
+
+  // Determines if there is a chance of returning multiple models
+  // the function 'estimateModel' is applied.
+  bool returnMultipleModels() const override { return maximumSolutions() > 1; }
+
+  // The maximum number of solutions returned by the estimator
+  size_t maximumSolutions() const override { return 1; }
+
+  // The minimum number of points required for the estimation
+  size_t sampleSize() const override { return 3; }
+
+  poselib::BundleOptions& getMutableOptions() { return options; }
+
+  void setCamera(superansac::camera::AbstractCamera* kCamera_) { camera = kCamera_; }
+
+  // Estimate the model parameters from the given point sample
+  // using weighted fitting if possible.
+  FORCE_INLINE bool estimateModel(
+      const DataMatrix& kData_,                           // The set of data points
+      const size_t* kSample_,                             // The sample used for the estimation
+      const size_t kSampleNumber_,                        // The size of the sample
+      std::vector<models::Model>& models_,                // The estimated model parameters
+      const double* kWeights_ = nullptr) const override;  // The weight for each point
+};
+
+FORCE_INLINE bool PnPBundleAdjustmentSolver::estimateModel(
+    const DataMatrix& kData_,             // The set of data points
+    const size_t* kSample_,               // The sample used for the estimation
+    const size_t kSampleNumber_,          // The size of the sample
+    std::vector<models::Model>& models_,  // The estimated model parameters
+    const double* kWeights_) const        // The weight for each point
 {
-	namespace estimator
-	{
-		namespace solver
-		{
-			// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
-			class PnPBundleAdjustmentSolver : public AbstractSolver
-			{
-			protected:
-				poselib::BundleOptions options;
-				superansac::camera::AbstractCamera *camera;
-				const EPnPSolver epnpSolver;
+  // Check whether the camera has been set
+  if (camera == nullptr)
+    throw std::runtime_error("The PnPBundleAdjustmentSolver requires a camera to be set.");
 
-			public:
-				PnPBundleAdjustmentSolver() : camera(nullptr)
-				{
-				}
+  // Check if we have enough points for the bundle adjustment
+  if (kSampleNumber_ < sampleSize()) return false;
 
-				~PnPBundleAdjustmentSolver()
-				{
-				}
+  // The point correspondences. Thread-local scratch buffers: this solver
+  // runs in the inner loops of the local optimizers, so reusing the
+  // buffers avoids per-call heap allocations. The contents are fully
+  // overwritten below.
+  static thread_local std::vector<Eigen::Vector2d> points2d;
+  static thread_local std::vector<Eigen::Vector3d> points3d;
+  std::vector<Eigen::Vector2d> unnormalizedPoint2d;
+  points2d.resize(kSampleNumber_);
+  points3d.resize(kSampleNumber_);
 
-				// Determines if there is a chance of returning multiple models
-				// the function 'estimateModel' is applied.
-				bool returnMultipleModels() const override
-				{
-					return maximumSolutions() > 1;
-				}
+  // Filling the point correspondences if the sample is not provided
+  if (kSample_ == nullptr) {
+    // Filling the point correspondences
+    for (size_t pointIdx = 0; pointIdx < kSampleNumber_; pointIdx++) {
+      points2d[pointIdx] = Eigen::Vector2d(kData_(pointIdx, 0), kData_(pointIdx, 1));
+      points3d[pointIdx] =
+          Eigen::Vector3d(kData_(pointIdx, 2), kData_(pointIdx, 3), kData_(pointIdx, 4));
+    }
+  } else  // Filling the point correspondences if the sample is provided
+  {
+    for (size_t pointIdx = 0; pointIdx < kSampleNumber_; pointIdx++) {
+      const size_t& idx = kSample_[pointIdx];
+      points2d[pointIdx] = Eigen::Vector2d(kData_(idx, 0), kData_(idx, 1));
+      points3d[pointIdx] = Eigen::Vector3d(kData_(idx, 2), kData_(idx, 3), kData_(idx, 4));
+    }
+  }
 
-				// The maximum number of solutions returned by the estimator
-				size_t maximumSolutions() const override
-				{
-					return 1;
-				}
-				
-				// The minimum number of points required for the estimation
-				size_t sampleSize() const override
-				{
-					return 3;
-				}
-
-				poselib::BundleOptions &getMutableOptions()
-				{
-					return options;
-				}
-
-				void setCamera(superansac::camera::AbstractCamera *kCamera_)
-				{
-					camera = kCamera_;
-				}
-
-				// Estimate the model parameters from the given point sample
-				// using weighted fitting if possible.
-				FORCE_INLINE bool estimateModel(
-					const DataMatrix& kData_, // The set of data points
-					const size_t *kSample_, // The sample used for the estimation
-					const size_t kSampleNumber_, // The size of the sample
-					std::vector<models::Model> &models_, // The estimated model parameters
-					const double *kWeights_ = nullptr) const override; // The weight for each point
-			};
-			
-			FORCE_INLINE bool PnPBundleAdjustmentSolver::estimateModel(
-				const DataMatrix& kData_, // The set of data points
-				const size_t *kSample_, // The sample used for the estimation
-				const size_t kSampleNumber_, // The size of the sample
-				std::vector<models::Model> &models_, // The estimated model parameters
-				const double *kWeights_) const // The weight for each point
-			{			
-				// Check whether the camera has been set
-				if (camera == nullptr)
-					throw std::runtime_error("The PnPBundleAdjustmentSolver requires a camera to be set.");
-
-				// Check if we have enough points for the bundle adjustment
-				if (kSampleNumber_ < sampleSize())
-					return false;
-
-				// The point correspondences. Thread-local scratch buffers: this solver
-				// runs in the inner loops of the local optimizers, so reusing the
-				// buffers avoids per-call heap allocations. The contents are fully
-				// overwritten below.
-				static thread_local std::vector<Eigen::Vector2d> points2d;
-				static thread_local std::vector<Eigen::Vector3d> points3d;
-				std::vector<Eigen::Vector2d> unnormalizedPoint2d;
-				points2d.resize(kSampleNumber_);
-				points3d.resize(kSampleNumber_);
-
-				// Filling the point correspondences if the sample is not provided
-				if (kSample_ == nullptr)
-				{
-					// Filling the point correspondences
-					for (size_t pointIdx = 0; pointIdx < kSampleNumber_; pointIdx++)
-					{
-						points2d[pointIdx] = Eigen::Vector2d(kData_(pointIdx, 0), kData_(pointIdx, 1));
-						points3d[pointIdx] = Eigen::Vector3d(kData_(pointIdx, 2), kData_(pointIdx, 3), kData_(pointIdx, 4));
-					}
-				} else // Filling the point correspondences if the sample is provided
-				{
-					for (size_t pointIdx = 0; pointIdx < kSampleNumber_; pointIdx++)
-					{
-						const size_t& idx = kSample_[pointIdx];
-						points2d[pointIdx] = Eigen::Vector2d(kData_(idx, 0), kData_(idx, 1));
-						points3d[pointIdx] = Eigen::Vector3d(kData_(idx, 2), kData_(idx, 3), kData_(idx, 4));
-					}
-				}
-				
-				if (models_.size() == 0)
-				{
-					/*P3PLambdaTwistSolver p3pSolver;
+  if (models_.size() == 0) {
+    /*P3PLambdaTwistSolver p3pSolver;
 					samplers::UniformRandomSampler sampler;
 					sampler.initialize(kSampleNumber_);
 					size_t localSample[3];
@@ -166,49 +139,46 @@ namespace superansac
 						p3pSolver.estimateModel(kData_, localSample, 3, models_);
 					}*/
 
-					epnpSolver.estimateModel(kData_, kSample_, kSampleNumber_, models_);
+    epnpSolver.estimateModel(kData_, kSample_, kSampleNumber_, models_);
 
-					if (models_.size() == 0)
-						return false;
-				}
+    if (models_.size() == 0) return false;
+  }
 
-				// The options for the bundle adjustment
-				poselib::BundleOptions tmpOptions = options;
-				// If the sample is provided, we use a more robust loss function. This typically runs in the end of the robust estimation
-				if (kSample_ != nullptr) 
-				{
-					tmpOptions.loss_scale = 1.0 * options.loss_scale;
-					//tmpOptions.loss_scale = 0.5 * options.loss_scale;
-					tmpOptions.max_iterations = 100;
-					tmpOptions.loss_type = poselib::BundleOptions::LossType::CAUCHY;
-				
-					/*// Unnormalize the points by the focal length to numerical stability
+  // The options for the bundle adjustment
+  poselib::BundleOptions tmpOptions = options;
+  // If the sample is provided, we use a more robust loss function. This typically runs in the end of the robust estimation
+  if (kSample_ != nullptr) {
+    tmpOptions.loss_scale = 1.0 * options.loss_scale;
+    //tmpOptions.loss_scale = 0.5 * options.loss_scale;
+    tmpOptions.max_iterations = 100;
+    tmpOptions.loss_type = poselib::BundleOptions::LossType::CAUCHY;
+
+    /*// Unnormalize the points by the focal length to numerical stability
 					camera->fromImageToPixelCoordinates(points2d, unnormalizedPoint2d);
 
 					// Unnormalize the threshold
 					tmpOptions.loss_scale = camera->unnormalizeThreshold(tmpOptions.loss_scale);*/
-				}
-				
-				// The pose with the lowest cost
-				double bestCost = std::numeric_limits<double>::max();
-				poselib::CameraPose bestPose;
+  }
 
-				// Iterating through the potential models.
-				for (auto& model : models_)
-				{
-					// Get the pose parameters
-					Eigen::Matrix3d R = model.getData().block<3, 3>(0, 0);
-					Eigen::Vector3d t = model.getData().block<3, 1>(0, 3);
+  // The pose with the lowest cost
+  double bestCost = std::numeric_limits<double>::max();
+  poselib::CameraPose bestPose;
 
-					// Decompose the essential matrix to camera poses
-					poselib::CameraPose pose(R, t);
-					
-					// Perform the bundle adjustment
-					poselib::BundleStats stats;
+  // Iterating through the potential models.
+  for (auto& model : models_) {
+    // Get the pose parameters
+    Eigen::Matrix3d R = model.getData().block<3, 3>(0, 0);
+    Eigen::Vector3d t = model.getData().block<3, 1>(0, 3);
 
-					//if (kSample_ != nullptr) 
-					poselib::bundle_adjust(points2d, points3d, &pose, tmpOptions);
-					/*else
+    // Decompose the essential matrix to camera poses
+    poselib::CameraPose pose(R, t);
+
+    // Perform the bundle adjustment
+    poselib::BundleStats stats;
+
+    //if (kSample_ != nullptr)
+    poselib::bundle_adjust(points2d, points3d, &pose, tmpOptions);
+    /*else
 					{
 						poselib::Camera dummyCamera;
 						dummyCamera.model_id = camera->getModelId();
@@ -217,24 +187,22 @@ namespace superansac
 						
 					}*/
 
-					if (stats.cost < bestCost)
-					{
-						bestCost = stats.cost;
-						bestPose = pose;
-					}
-				}
-				
-				// Composing the essential matrix from the pose
-				if (bestCost < std::numeric_limits<double>::max())
-				{
-					// Adding the essential matrix as the estimated models.
-					models_.resize(1);
-					auto &modelData = models_[0].getMutableData();
-					modelData = bestPose.Rt();
-				}
+    if (stats.cost < bestCost) {
+      bestCost = stats.cost;
+      bestPose = pose;
+    }
+  }
 
-				return models_.size();
-			}
-		}
-	}
+  // Composing the essential matrix from the pose
+  if (bestCost < std::numeric_limits<double>::max()) {
+    // Adding the essential matrix as the estimated models.
+    models_.resize(1);
+    auto& modelData = models_[0].getMutableData();
+    modelData = bestPose.Rt();
+  }
+
+  return models_.size();
 }
+}  // namespace solver
+}  // namespace estimator
+}  // namespace superansac

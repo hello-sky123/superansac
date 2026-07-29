@@ -41,26 +41,22 @@
 namespace superansac {
 namespace termination {
 
-class AbstractCriterion
-{
-    protected:
+class AbstractCriterion {
+ protected:
+ public:
+  // Constructor
+  AbstractCriterion() {}
 
-    public:
-        // Constructor 
-        AbstractCriterion() {}
+  // Destructor
+  virtual ~AbstractCriterion() {}
 
-        // Destructor
-        virtual ~AbstractCriterion() {}
-
-        // Sample function
-        FORCE_INLINE virtual void check(
-            const DataMatrix &kData_, // Data matrix
-            const scoring::Score &kScore_, // Score object
-            const size_t &kSampleSize_, // Sample size
-            size_t &iterationNumber_, /// Number of iterations
-            bool &immediateTermination_) = 0; // Immediate termination flag
-       
+  // Sample function
+  FORCE_INLINE virtual void check(const DataMatrix& kData_,          // Data matrix
+                                  const scoring::Score& kScore_,     // Score object
+                                  const size_t& kSampleSize_,        // Sample size
+                                  size_t& iterationNumber_,          /// Number of iterations
+                                  bool& immediateTermination_) = 0;  // Immediate termination flag
 };
 
-}
-}
+}  // namespace termination
+}  // namespace superansac

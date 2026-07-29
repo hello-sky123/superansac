@@ -41,42 +41,35 @@
 namespace superansac {
 namespace samplers {
 
-class AbstractSampler
-{
-    public:
-        // Constructor 
-        AbstractSampler() {}
+class AbstractSampler {
+ public:
+  // Constructor
+  AbstractSampler() {}
 
-        // Destructor
-        virtual ~AbstractSampler() {}
+  // Destructor
+  virtual ~AbstractSampler() {}
 
-        // Sample function
-        FORCE_INLINE virtual bool sample(
-            const DataMatrix &kData_, // Data matrix
-            const int kNumSamples_, // Number of samples
-            size_t *kSamples_) = 0; // Sample indices
+  // Sample function
+  FORCE_INLINE virtual bool sample(const DataMatrix& kData_,  // Data matrix
+                                   const int kNumSamples_,    // Number of samples
+                                   size_t* kSamples_) = 0;    // Sample indices
 
-        // Initialize function
-        FORCE_INLINE virtual void initialize(
-            const DataMatrix &kData_) = 0; // Data matrix
-            
-        // Sample function
-        FORCE_INLINE virtual bool sample(
-            const size_t kPointNumber_, // Data matrix
-            const int kNumSamples_, // Number of samples
-            size_t *kSamples_) = 0; // Sample indices
+  // Initialize function
+  FORCE_INLINE virtual void initialize(const DataMatrix& kData_) = 0;  // Data matrix
 
-        // Initialize function
-        FORCE_INLINE virtual void initialize(
-            const size_t kPointNumber_) = 0; // Data matrix
-            
-        // Update function
-        FORCE_INLINE virtual void update(
-            const size_t* const kSample_,
-            const size_t& kSampleSize_,
-            const size_t& kIterationNumber_,
-            const double& kInlierRatio_) = 0;
+  // Sample function
+  FORCE_INLINE virtual bool sample(const size_t kPointNumber_,  // Data matrix
+                                   const int kNumSamples_,      // Number of samples
+                                   size_t* kSamples_) = 0;      // Sample indices
+
+  // Initialize function
+  FORCE_INLINE virtual void initialize(const size_t kPointNumber_) = 0;  // Data matrix
+
+  // Update function
+  FORCE_INLINE virtual void update(const size_t* const kSample_, const size_t& kSampleSize_,
+                                   const size_t& kIterationNumber_,
+                                   const double& kInlierRatio_) = 0;
 };
 
-}
-}
+}  // namespace samplers
+}  // namespace superansac

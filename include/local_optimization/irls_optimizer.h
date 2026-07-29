@@ -38,149 +38,123 @@
 #include "abstract_local_optimizer.h"
 #include "../utils/types.h"
 
-namespace superansac
-{
-	namespace local_optimization
-	{
-		// Templated class for estimating a model for RANSAC. This class is purely a
-		// virtual class and should be implemented for the specific task that RANSAC is
-		// being used for. Two methods must be implemented: estimateModel and residual. All
-		// other methods are optional, but will likely enhance the quality of the RANSAC
-		// output.
-		class IRLSOptimizer : public LocalOptimizer
-		{
-		protected:
-			size_t maxIterations;
-			bool useInliers;
+namespace superansac {
+namespace local_optimization {
+// Templated class for estimating a model for RANSAC. This class is purely a
+// virtual class and should be implemented for the specific task that RANSAC is
+// being used for. Two methods must be implemented: estimateModel and residual. All
+// other methods are optional, but will likely enhance the quality of the RANSAC
+// output.
+class IRLSOptimizer : public LocalOptimizer {
+ protected:
+  size_t maxIterations;
+  bool useInliers;
 
-		public:
-			IRLSOptimizer() : maxIterations(100), useInliers(false) 
-			{
+ public:
+  IRLSOptimizer() : maxIterations(100), useInliers(false) {}
 
-			}
+  ~IRLSOptimizer() {}
 
-			~IRLSOptimizer() {}
+  // Set the maximum number of iterations
+  void setMaxIterations(const size_t maxIterations_) { maxIterations = maxIterations_; }
 
-			// Set the maximum number of iterations
-			void setMaxIterations(const size_t maxIterations_)
-			{
-				maxIterations = maxIterations_;
-			}
+  void setUseInliers(const bool kUseInliers_) { useInliers = kUseInliers_; }
 
-			void setUseInliers(const bool kUseInliers_)
-			{
-				useInliers = kUseInliers_;
-			}
+  // The function for estimating the model parameters from the data points.
+  void run(const DataMatrix& kData_,              // The data points
+           const std::vector<size_t>& kInliers_,  // The inliers of the previously estimated model
+           const models::Model& kModel_,          // The previously estimated model
+           const scoring::Score& kScore_,         // The of the previously estimated model
+           const estimator::Estimator* kEstimator_,  // The estimator used for the model estimation
+           scoring::AbstractScoring* kScoring_,  // The scoring object used for the model estimation
+           models::Model& estimatedModel_,       // The estimated model
+           scoring::Score& estimatedScore_,      // The score of the estimated model
+           std::vector<size_t>& estimatedInliers_) const  // The inliers of the estimated model
+  {
+    // The invalid score
+    static const scoring::Score kInvalidScore = scoring::Score();
 
-			// The function for estimating the model parameters from the data points.
-			void run(const DataMatrix &kData_, // The data points
-				const std::vector<size_t> &kInliers_, // The inliers of the previously estimated model
-				const models::Model &kModel_, // The previously estimated model 
-				const scoring::Score &kScore_, // The of the previously estimated model
-				const estimator::Estimator *kEstimator_, // The estimator used for the model estimation
-				scoring::AbstractScoring *kScoring_, // The scoring object used for the model estimation
-				models::Model &estimatedModel_, // The estimated model
-				scoring::Score &estimatedScore_, // The score of the estimated model
-				std::vector<size_t> &estimatedInliers_) const // The inliers of the estimated model
-			{
-				// The invalid score
-				static const scoring::Score kInvalidScore = scoring::Score();
+    // The estimated models - reserve to avoid reallocations
+    std::vector<models::Model> estimatedModels;
+    estimatedModels.reserve(10);
+    scoring::Score currentScore = kInvalidScore;
 
-				// The estimated models - reserve to avoid reallocations
-				std::vector<models::Model> estimatedModels;
-				estimatedModels.reserve(10);
-				scoring::Score currentScore = kInvalidScore;
+    // Pre-allocate weights vector outside loop
+    std::vector<double> weights(kData_.rows());
 
-				// Pre-allocate weights vector outside loop
-				std::vector<double> weights(kData_.rows());
+    // Initialize the estimated model and score
+    estimatedModel_ = kModel_;
+    estimatedScore_ = kScore_;
 
-				// Initialize the estimated model and score
-				estimatedModel_ = kModel_;
-				estimatedScore_ = kScore_;
+    // Clear the estimated inliers
+    estimatedInliers_.clear();
+    estimatedInliers_.reserve(kData_.rows());
 
-				// Clear the estimated inliers
-				estimatedInliers_.clear();
-				estimatedInliers_.reserve(kData_.rows());
+    // Temp inliers for selecting the best model
+    std::vector<size_t> tmpInliers;
+    tmpInliers.reserve(kData_.rows());
 
-				// Temp inliers for selecting the best model
-				std::vector<size_t> tmpInliers;
-				tmpInliers.reserve(kData_.rows());
+    // A flag indicating if the model has been updated
+    bool updated = false;
 
-				// A flag indicating if the model has been updated
-				bool updated = false;
+    // Calculate the score of the estimated model
+    estimatedScore_ = kScoring_->score(kData_, estimatedModel_, kEstimator_, estimatedInliers_);
 
-				// Calculate the score of the estimated model
-				estimatedScore_ = kScoring_->score(kData_, estimatedModel_, kEstimator_, estimatedInliers_);
+    for (size_t iteration = 0; iteration < maxIterations; ++iteration) {
+      // If the model has not been updated in the previous iteration, break
+      updated = false;
 
-				for (size_t iteration = 0; iteration < maxIterations; ++iteration)
-				{
-					// If the model has not been updated in the previous iteration, break
-					updated = false; 
-					
-					// Calculate the MSAC weights for the data points
-					kScoring_->getWeights(kData_, estimatedModel_, kEstimator_, weights, &estimatedInliers_);
-					
-					estimatedModels.clear();
+      // Calculate the MSAC weights for the data points
+      kScoring_->getWeights(kData_, estimatedModel_, kEstimator_, weights, &estimatedInliers_);
 
-					if (useInliers)
-					{
-						// Use the provided inliers only for the first fit; afterwards
-						// refit from the inliers re-collected from the refined model.
-						// (Previously every iteration refit from the same kInliers_,
-						// so all iterations after the first produced the same model.)
-						const std::vector<size_t> &kFitInliers =
-							(iteration == 0 && kInliers_.size() > 0) ? kInliers_ : estimatedInliers_;
+      estimatedModels.clear();
 
-						if (kFitInliers.size() < kEstimator_->nonMinimalSampleSize())
-							break;
+      if (useInliers) {
+        // Use the provided inliers only for the first fit; afterwards
+        // refit from the inliers re-collected from the refined model.
+        // (Previously every iteration refit from the same kInliers_,
+        // so all iterations after the first produced the same model.)
+        const std::vector<size_t>& kFitInliers =
+            (iteration == 0 && kInliers_.size() > 0) ? kInliers_ : estimatedInliers_;
 
-						// Estimate the model using the inliers
-						if (!kEstimator_->estimateModelNonminimal(
-							kData_,  // The data points
-							kFitInliers.data(),
-							kFitInliers.size(),
-							&estimatedModels,
-							nullptr))
-						{
-							if (iteration == 0)
-							{
-								estimatedScore_ = kInvalidScore;
-								return;
-							}
-							break;
-						}
-					} else if (!kEstimator_->estimateModelNonminimal( // Estimate the model using the inliers
-						kData_,  // The data points
-						&estimatedInliers_[0],
-						estimatedInliers_.size(),
-						&estimatedModels,
-						&weights[0]))
-						break;
+        if (kFitInliers.size() < kEstimator_->nonMinimalSampleSize()) break;
 
-					// Calculate the scoring of the estimated model
-					for (const auto &model : estimatedModels)
-					{
-						// Calculate the score of the estimated model
-						tmpInliers.clear();
-						currentScore = kScoring_->score(kData_, model, kEstimator_, tmpInliers);
+        // Estimate the model using the inliers
+        if (!kEstimator_->estimateModelNonminimal(kData_,  // The data points
+                                                  kFitInliers.data(), kFitInliers.size(),
+                                                  &estimatedModels, nullptr)) {
+          if (iteration == 0) {
+            estimatedScore_ = kInvalidScore;
+            return;
+          }
+          break;
+        }
+      } else if (!kEstimator_->estimateModelNonminimal(  // Estimate the model using the inliers
+                     kData_,                             // The data points
+                     &estimatedInliers_[0], estimatedInliers_.size(), &estimatedModels,
+                     &weights[0]))
+        break;
 
-						// Check if the current model is better than the previous one
-						if (currentScore > estimatedScore_)
-						{
-							// Update the estimated model
-							estimatedModel_ = model;
-							estimatedScore_ = currentScore;
-							tmpInliers.swap(estimatedInliers_);
-							updated = true;
-						}
-					}
+      // Calculate the scoring of the estimated model
+      for (const auto& model : estimatedModels) {
+        // Calculate the score of the estimated model
+        tmpInliers.clear();
+        currentScore = kScoring_->score(kData_, model, kEstimator_, tmpInliers);
 
-					// If the model has not been updated in the previous iteration, break
-					if (!updated)
-						break;
-				}
-			}
+        // Check if the current model is better than the previous one
+        if (currentScore > estimatedScore_) {
+          // Update the estimated model
+          estimatedModel_ = model;
+          estimatedScore_ = currentScore;
+          tmpInliers.swap(estimatedInliers_);
+          updated = true;
+        }
+      }
 
-		};
-	}
-}  // namespace gcransac
+      // If the model has not been updated in the previous iteration, break
+      if (!updated) break;
+    }
+  }
+};
+}  // namespace local_optimization
+}  // namespace superansac

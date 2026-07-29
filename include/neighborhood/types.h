@@ -42,30 +42,24 @@
 namespace superansac {
 namespace neighborhood {
 
-    // Enum defining available sampler types
-    enum class NeighborhoodType {
-        Grid,
-        BruteForce,
-        FLANN_KNN,
-        FLANN_Radius
-    };
+// Enum defining available sampler types
+enum class NeighborhoodType { Grid, BruteForce, FLANN_KNN, FLANN_Radius };
 
-    // Factory function to create samplers
-    template <size_t _DimensionNumber>
-    FORCE_INLINE std::unique_ptr<AbstractNeighborhoodGraph> createNeighborhoodGraph(const NeighborhoodType kType_) 
-    {
-        switch (kType_) 
-        {
-            case NeighborhoodType::Grid:
-                return std::make_unique<GridNeighborhoodGraph<_DimensionNumber>>();
-            case NeighborhoodType::FLANN_KNN:
-                return std::make_unique<FlannNeighborhoodGraph<_DimensionNumber, 0>>();
-            case NeighborhoodType::FLANN_Radius:
-                return std::make_unique<FlannNeighborhoodGraph<_DimensionNumber, 1>>();
-            default:
-                throw std::invalid_argument("Unknown Neighborhood Type");
-        }
-    }
+// Factory function to create samplers
+template <size_t _DimensionNumber>
+FORCE_INLINE std::unique_ptr<AbstractNeighborhoodGraph> createNeighborhoodGraph(
+    const NeighborhoodType kType_) {
+  switch (kType_) {
+    case NeighborhoodType::Grid:
+      return std::make_unique<GridNeighborhoodGraph<_DimensionNumber>>();
+    case NeighborhoodType::FLANN_KNN:
+      return std::make_unique<FlannNeighborhoodGraph<_DimensionNumber, 0>>();
+    case NeighborhoodType::FLANN_Radius:
+      return std::make_unique<FlannNeighborhoodGraph<_DimensionNumber, 1>>();
+    default:
+      throw std::invalid_argument("Unknown Neighborhood Type");
+  }
+}
 
-}
-}
+}  // namespace neighborhood
+}  // namespace superansac

@@ -38,61 +38,52 @@
 #include <unordered_map>
 #include "../utils/types.h"
 
-namespace superansac 
-{
-	namespace neighborhood
-	{
-		class AbstractNeighborhoodGraph
-		{
-		protected:
-			// The pointer of the container consisting of the data points from which
-			// the neighborhood graph is constructed.
-			const DataMatrix  * const kContainer;
+namespace superansac {
+namespace neighborhood {
+class AbstractNeighborhoodGraph {
+ protected:
+  // The pointer of the container consisting of the data points from which
+  // the neighborhood graph is constructed.
+  const DataMatrix* const kContainer;
 
-			// The number of neighbors, i.e., edges in the neighborhood graph.
-			size_t neighborNumber;
+  // The number of neighbors, i.e., edges in the neighborhood graph.
+  size_t neighborNumber;
 
-			// A flag indicating if the initialization was successfull.
-			bool initialized;
+  // A flag indicating if the initialization was successfull.
+  bool initialized;
 
-		public:
-			AbstractNeighborhoodGraph() : initialized(false), 
-				kContainer(nullptr) 
-			{
-			}
+ public:
+  AbstractNeighborhoodGraph() : initialized(false), kContainer(nullptr) {}
 
-			AbstractNeighborhoodGraph(const DataMatrix * const kContainer_) :
-				neighborNumber(0),
-                initialized(false),
-				kContainer(kContainer_)
-			{
-			}
+  AbstractNeighborhoodGraph(const DataMatrix* const kContainer_)
+      : neighborNumber(0), initialized(false), kContainer(kContainer_) {}
 
-            virtual ~AbstractNeighborhoodGraph() {}
+  virtual ~AbstractNeighborhoodGraph() {}
 
-			// A function to initialize and create the neighbordhood graph.
-			virtual bool initialize(const DataMatrix * const kContainer_) = 0;
+  // A function to initialize and create the neighbordhood graph.
+  virtual bool initialize(const DataMatrix* const kContainer_) = 0;
 
-			// Returns the neighbors of the current point in the graph.
-			inline virtual const std::vector<size_t> &getNeighbors(const size_t pointIdx_) const = 0;
+  // Returns the neighbors of the current point in the graph.
+  inline virtual const std::vector<size_t>& getNeighbors(const size_t pointIdx_) const = 0;
 
-			// Returns the number of edges in the neighborhood graph.
-			size_t getNeighborNumber() const { return neighborNumber; }
+  // Returns the number of edges in the neighborhood graph.
+  size_t getNeighborNumber() const { return neighborNumber; }
 
-			// Returns if the initialization was successfull.
-			bool isInitialized() const { return initialized; }
+  // Returns if the initialization was successfull.
+  bool isInitialized() const { return initialized; }
 
-			// A function returning the cell sizes
-			virtual const std::vector<double> &getCellSizes() const = 0;
+  // A function returning the cell sizes
+  virtual const std::vector<double>& getCellSizes() const = 0;
 
-			// A function returning all cells in the graph
-			virtual const std::unordered_map<size_t, std::pair<std::vector<size_t>, std::vector<size_t>>>& getCells() const = 0;
+  // A function returning all cells in the graph
+  virtual const std::unordered_map<size_t, std::pair<std::vector<size_t>, std::vector<size_t>>>&
+  getCells() const = 0;
 
-			// The number of divisions/cells along an axis
-			virtual size_t getDivisionNumber() const = 0;
+  // The number of divisions/cells along an axis
+  virtual size_t getDivisionNumber() const = 0;
 
-			// A function returning the number of cells filled
-			virtual size_t filledCellNumber() const = 0;
-		};
-	}
-}
+  // A function returning the number of cells filled
+  virtual size_t filledCellNumber() const = 0;
+};
+}  // namespace neighborhood
+}  // namespace superansac

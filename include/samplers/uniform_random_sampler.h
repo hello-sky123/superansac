@@ -43,83 +43,54 @@
 namespace superansac {
 namespace samplers {
 
-class UniformRandomSampler : public AbstractSampler
-{
-    protected:
-        std::unique_ptr<utils::UniformRandomGenerator<size_t>> randomGenerator;
+class UniformRandomSampler : public AbstractSampler {
+ protected:
+  std::unique_ptr<utils::UniformRandomGenerator<size_t>> randomGenerator;
 
-    public:
-        // Constructor 
-        UniformRandomSampler() {}
-        // Destructor
-        ~UniformRandomSampler() {}
+ public:
+  // Constructor
+  UniformRandomSampler() {}
+  // Destructor
+  ~UniformRandomSampler() {}
 
-        // Return the name of the sampler
-        constexpr static const char *name()
-        {
-            return "UniformRandomSampler";
-        }
+  // Return the name of the sampler
+  constexpr static const char* name() { return "UniformRandomSampler"; }
 
-        // Initializes any non-trivial variables and sets up sampler if
-        // necessary. Must be called before sample is called.
-        FORCE_INLINE void initialize(
-            const DataMatrix &kData_)
-        {
-            randomGenerator = std::make_unique<utils::UniformRandomGenerator<size_t>>();
-            randomGenerator->resetGenerator(0,
-                static_cast<size_t>(kData_.rows()));
-        }
+  // Initializes any non-trivial variables and sets up sampler if
+  // necessary. Must be called before sample is called.
+  FORCE_INLINE void initialize(const DataMatrix& kData_) {
+    randomGenerator = std::make_unique<utils::UniformRandomGenerator<size_t>>();
+    randomGenerator->resetGenerator(0, static_cast<size_t>(kData_.rows()));
+  }
 
-        // Initializes any non-trivial variables and sets up sampler if
-        // necessary. Must be called before sample is called.
-        FORCE_INLINE void initialize(
-            const size_t kPointNumber_)
-        {
-            randomGenerator = std::make_unique<utils::UniformRandomGenerator<size_t>>();
-            randomGenerator->resetGenerator(0,
-                static_cast<size_t>(kPointNumber_));
-        }
-        			
-        FORCE_INLINE void update(
-            const size_t* const subset_,
-            const size_t& sample_size_,
-            const size_t& iteration_number_,
-            const double& inlier_ratio_)
-        {
-            
-        }
+  // Initializes any non-trivial variables and sets up sampler if
+  // necessary. Must be called before sample is called.
+  FORCE_INLINE void initialize(const size_t kPointNumber_) {
+    randomGenerator = std::make_unique<utils::UniformRandomGenerator<size_t>>();
+    randomGenerator->resetGenerator(0, static_cast<size_t>(kPointNumber_));
+  }
 
-        void reset(const size_t &kDataSize_)
-        {
-            randomGenerator->resetGenerator(0, kDataSize_);
-        }
+  FORCE_INLINE void update(const size_t* const subset_, const size_t& sample_size_,
+                           const size_t& iteration_number_, const double& inlier_ratio_) {}
 
-        // Sample function
-        FORCE_INLINE bool sample(
-            const DataMatrix &kData_,
-            const int kNumSamples_, 
-            size_t *samples_)
-        {                
-			return sample(kData_.rows(), kNumSamples_, samples_);
-        }
+  void reset(const size_t& kDataSize_) { randomGenerator->resetGenerator(0, kDataSize_); }
 
-        // Sample function
-        FORCE_INLINE bool sample(
-            const size_t kPointNumber_,
-            const int kNumSamples_, 
-            size_t *samples_)
-        {
-            // If there are not enough points in the pool, interrupt the procedure.
-			if (kNumSamples_ > kPointNumber_)
-				return false;
+  // Sample function
+  FORCE_INLINE bool sample(const DataMatrix& kData_, const int kNumSamples_, size_t* samples_) {
+    return sample(kData_.rows(), kNumSamples_, samples_);
+  }
 
-			// Generate a unique random set of indices.
-			randomGenerator->generateUniqueRandomSet(samples_,
-				kNumSamples_);
-                
-			return true;
-        }
+  // Sample function
+  FORCE_INLINE bool sample(const size_t kPointNumber_, const int kNumSamples_, size_t* samples_) {
+    // If there are not enough points in the pool, interrupt the procedure.
+    if (kNumSamples_ > kPointNumber_) return false;
+
+    // Generate a unique random set of indices.
+    randomGenerator->generateUniqueRandomSet(samples_, kNumSamples_);
+
+    return true;
+  }
 };
 
-}
-}
+}  // namespace samplers
+}  // namespace superansac

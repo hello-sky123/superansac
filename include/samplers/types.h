@@ -46,39 +46,37 @@
 namespace superansac {
 namespace samplers {
 
-    // Enum defining available sampler types
-    enum class SamplerType {
-        Uniform,
-        PROSAC,
-        NAPSAC,
-        ProgressiveNAPSAC,
-        ImportanceSampler,
-        ARSampler,
-        Exhaustive
-    };
+// Enum defining available sampler types
+enum class SamplerType {
+  Uniform,
+  PROSAC,
+  NAPSAC,
+  ProgressiveNAPSAC,
+  ImportanceSampler,
+  ARSampler,
+  Exhaustive
+};
 
-    // Factory function to create samplers
-    template <size_t _DimensionNumber>
-    FORCE_INLINE std::unique_ptr<AbstractSampler> createSampler(const SamplerType kType_) 
-    {
-        switch (kType_) 
-        {
-            case SamplerType::Uniform:
-                return std::make_unique<UniformRandomSampler>();
-            case SamplerType::PROSAC:
-                return std::make_unique<PROSACSampler>();
-            case SamplerType::NAPSAC:
-                return std::make_unique<NAPSACSampler>();
-            case SamplerType::ProgressiveNAPSAC:
-                return std::make_unique<ProgressiveNAPSACSampler<_DimensionNumber>>();
-            case SamplerType::ImportanceSampler:
-                return std::make_unique<ImportanceSampler>();
-            case SamplerType::ARSampler:
-                return std::make_unique<AdaptiveReorderingSampler>();
-            default:
-                throw std::invalid_argument("Unknown Sampler Type");
-        }
-    }
+// Factory function to create samplers
+template <size_t _DimensionNumber>
+FORCE_INLINE std::unique_ptr<AbstractSampler> createSampler(const SamplerType kType_) {
+  switch (kType_) {
+    case SamplerType::Uniform:
+      return std::make_unique<UniformRandomSampler>();
+    case SamplerType::PROSAC:
+      return std::make_unique<PROSACSampler>();
+    case SamplerType::NAPSAC:
+      return std::make_unique<NAPSACSampler>();
+    case SamplerType::ProgressiveNAPSAC:
+      return std::make_unique<ProgressiveNAPSACSampler<_DimensionNumber>>();
+    case SamplerType::ImportanceSampler:
+      return std::make_unique<ImportanceSampler>();
+    case SamplerType::ARSampler:
+      return std::make_unique<AdaptiveReorderingSampler>();
+    default:
+      throw std::invalid_argument("Unknown Sampler Type");
+  }
+}
 
-}
-}
+}  // namespace samplers
+}  // namespace superansac

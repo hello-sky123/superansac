@@ -44,135 +44,108 @@
 namespace superansac {
 namespace samplers {
 
-class AdaptiveReorderingSampler : public AbstractSampler
-{
-    protected:
-        std::vector<std::tuple<double, size_t, size_t, double, double>> probabilities;
-        double estimatorVariance;
-        double randomness,
-            randomness2,
-            randomnessRandMax;
-			
-        std::priority_queue<std::pair<double, size_t>, 
-            std::vector<std::pair<double, size_t>> > processingQueue;
-    public:
-        // Constructor 
-        AdaptiveReorderingSampler() {}
-        // Destructor
-        ~AdaptiveReorderingSampler() {}
+class AdaptiveReorderingSampler : public AbstractSampler {
+ protected:
+  std::vector<std::tuple<double, size_t, size_t, double, double>> probabilities;
+  double estimatorVariance;
+  double randomness, randomness2, randomnessRandMax;
 
-        // Return the name of the sampler
-        constexpr static const char *name()
-        {
-            return "Adaptive Reordering Sampler";
-        }
+  std::priority_queue<std::pair<double, size_t>, std::vector<std::pair<double, size_t>>>
+      processingQueue;
 
-        // Initializes any non-trivial variables and sets up sampler if
-        // necessary. Must be called before sample is called.
-        FORCE_INLINE void initialize(
-            const DataMatrix &kData_)
-        {
-            initialize(kData_.rows());
-        }
+ public:
+  // Constructor
+  AdaptiveReorderingSampler() {}
+  // Destructor
+  ~AdaptiveReorderingSampler() {}
 
-        // Initialize function
-        FORCE_INLINE void initialize(
-            const DataMatrix * const kData_,
-            const std::vector<double> &kInlierProbabilities_,
-            const double kEstimatorVariance_ = 0.9765, //0.12,
-            const double kRandomness_ = 0.01) 
-        {
-            // Check if the number of correspondences and the number of provided probabilities match
-            if (kInlierProbabilities_.size() != kData_->rows())
-                throw std::runtime_error("The number of correspondences and the number of provided probabilities do not match.");
+  // Return the name of the sampler
+  constexpr static const char* name() { return "Adaptive Reordering Sampler"; }
 
-            // Set the variables
-            randomness = kRandomness_;
-            randomness2 = randomness / 2.0;
-            randomnessRandMax = randomness / static_cast<double>(RAND_MAX);
+  // Initializes any non-trivial variables and sets up sampler if
+  // necessary. Must be called before sample is called.
+  FORCE_INLINE void initialize(const DataMatrix& kData_) { initialize(kData_.rows()); }
 
-            // Saving the probabilities
-            double a, b, probability;
-            probabilities.reserve(kInlierProbabilities_.size());
-            for (size_t pointIdx = 0; pointIdx < kInlierProbabilities_.size(); ++pointIdx)
-            {
-                probability = kInlierProbabilities_[pointIdx];
-                if (probability == 1.0)
-                    probability -= 1e-6; 
+  // Initialize function
+  FORCE_INLINE void initialize(const DataMatrix* const kData_,
+                               const std::vector<double>& kInlierProbabilities_,
+                               const double kEstimatorVariance_ = 0.9765,  //0.12,
+                               const double kRandomness_ = 0.01) {
+    // Check if the number of correspondences and the number of provided probabilities match
+    if (kInlierProbabilities_.size() != kData_->rows())
+      throw std::runtime_error(
+          "The number of correspondences and the number of provided probabilities do not match.");
 
-                a = probability * probability * (1.0 - probability) / kEstimatorVariance_ - probability;
-                b = a * (1.0 - probability) / probability;
-                
-                probabilities.emplace_back(std::make_tuple(probability, pointIdx, 0, a, b));
-                processingQueue.emplace(std::make_pair(probability, pointIdx));
-            }
-        }
+    // Set the variables
+    randomness = kRandomness_;
+    randomness2 = randomness / 2.0;
+    randomnessRandMax = randomness / static_cast<double>(RAND_MAX);
 
-        // Initialize function
-        FORCE_INLINE void initialize(
-            const size_t kPointNumber_) // Data matrix
-        {
-            if (probabilities.empty())
-                throw std::runtime_error("The AdaptiveReorderingSampler should be initialized with the data matrix and the probabilities.");
-        }
+    // Saving the probabilities
+    double a, b, probability;
+    probabilities.reserve(kInlierProbabilities_.size());
+    for (size_t pointIdx = 0; pointIdx < kInlierProbabilities_.size(); ++pointIdx) {
+      probability = kInlierProbabilities_[pointIdx];
+      if (probability == 1.0) probability -= 1e-6;
 
-        FORCE_INLINE void update(
-            const size_t* const kSample_,
-            const size_t& kSampleSize_,
-            const size_t& kIterationNumber_,
-            const double& kInlierRatio_)
-        {
-            for (size_t i = 0; i < kSampleSize_; ++i)
-			{
-				const size_t& kSampleIdx = kSample_[i];
-				size_t& appearanceNumber = std::get<2>(probabilities[kSampleIdx]);
-				++appearanceNumber;
+      a = probability * probability * (1.0 - probability) / kEstimatorVariance_ - probability;
+      b = a * (1.0 - probability) / probability;
 
-				const double &a = std::get<3>(probabilities[kSampleIdx]); 
-				const double &b = std::get<4>(probabilities[kSampleIdx]); 
+      probabilities.emplace_back(std::make_tuple(probability, pointIdx, 0, a, b));
+      processingQueue.emplace(std::make_pair(probability, pointIdx));
+    }
+  }
 
-				double& updatedInlierRatio = std::get<0>(probabilities[kSampleIdx]);
+  // Initialize function
+  FORCE_INLINE void initialize(const size_t kPointNumber_)  // Data matrix
+  {
+    if (probabilities.empty())
+      throw std::runtime_error(
+          "The AdaptiveReorderingSampler should be initialized with the data matrix and the "
+          "probabilities.");
+  }
 
-				updatedInlierRatio = 
-					abs(a / (a + b + appearanceNumber)) + 
-					randomnessRandMax * static_cast<double>(rand()) - randomness2;
-					
-				updatedInlierRatio = 
-					std::max(0.0, std::min(0.999, updatedInlierRatio));
+  FORCE_INLINE void update(const size_t* const kSample_, const size_t& kSampleSize_,
+                           const size_t& kIterationNumber_, const double& kInlierRatio_) {
+    for (size_t i = 0; i < kSampleSize_; ++i) {
+      const size_t& kSampleIdx = kSample_[i];
+      size_t& appearanceNumber = std::get<2>(probabilities[kSampleIdx]);
+      ++appearanceNumber;
 
-				processingQueue.emplace(std::make_pair(updatedInlierRatio, kSampleIdx));
-			}
-        }
+      const double& a = std::get<3>(probabilities[kSampleIdx]);
+      const double& b = std::get<4>(probabilities[kSampleIdx]);
 
-        void reset(const size_t &kDataSize_)
-        {
-        }
+      double& updatedInlierRatio = std::get<0>(probabilities[kSampleIdx]);
 
+      updatedInlierRatio = abs(a / (a + b + appearanceNumber)) +
+                           randomnessRandMax * static_cast<double>(rand()) - randomness2;
 
-        // Sample function
-        FORCE_INLINE bool sample(
-            const DataMatrix &kData_, // Data matrix
-            const int kNumSamples_, // Number of samples
-            size_t *kSamples_) // Sample indices
-        {
-            return sample(kData_.rows(), kNumSamples_, kSamples_);
-        }
+      updatedInlierRatio = std::max(0.0, std::min(0.999, updatedInlierRatio));
 
-        // Sample function
-        FORCE_INLINE bool sample(
-            const size_t kPointNumber_,
-            const int kNumSamples_, 
-            size_t *samples_)
-        {
-            for (size_t i = 0; i < kNumSamples_; ++i)
-			{
-				const auto& item = processingQueue.top();
-				samples_[i] = item.second;
-				processingQueue.pop();
-			}
-			return true;
-        }
+      processingQueue.emplace(std::make_pair(updatedInlierRatio, kSampleIdx));
+    }
+  }
+
+  void reset(const size_t& kDataSize_) {}
+
+  // Sample function
+  FORCE_INLINE bool sample(const DataMatrix& kData_,  // Data matrix
+                           const int kNumSamples_,    // Number of samples
+                           size_t* kSamples_)         // Sample indices
+  {
+    return sample(kData_.rows(), kNumSamples_, kSamples_);
+  }
+
+  // Sample function
+  FORCE_INLINE bool sample(const size_t kPointNumber_, const int kNumSamples_, size_t* samples_) {
+    for (size_t i = 0; i < kNumSamples_; ++i) {
+      const auto& item = processingQueue.top();
+      samples_[i] = item.second;
+      processingQueue.pop();
+    }
+    return true;
+  }
 };
 
-}
-}
+}  // namespace samplers
+}  // namespace superansac

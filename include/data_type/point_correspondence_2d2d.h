@@ -35,79 +35,45 @@
 
 #include "abstract_type.h"
 
-class PointCorrespondence2D2D : public AbstractData
-{
-    protected:
-        // 2D point in the first image
-        double x1, y1;
-        // 2D point in the second image
-        double x2, y2;
+class PointCorrespondence2D2D : public AbstractData {
+ protected:
+  // 2D point in the first image
+  double x1, y1;
+  // 2D point in the second image
+  double x2, y2;
 
-    public:
-        // Constructor 
-        PointCorrespondence2D2D() : x1(0.0), y1(0.0), x2(0.0), y2(0.0)
-        {
-            
-        }
+ public:
+  // Constructor
+  PointCorrespondence2D2D() : x1(0.0), y1(0.0), x2(0.0), y2(0.0) {}
 
-        // Constructor
-        PointCorrespondence2D2D(
-            const double x1_, 
-            const double y1_, 
-            const double x2_, 
-            const double y2_) : x1(x1_), y1(y1_), x2(x2_), y2(y2_)
-        {
-            
-        }
+  // Constructor
+  PointCorrespondence2D2D(const double x1_, const double y1_, const double x2_, const double y2_)
+      : x1(x1_), y1(y1_), x2(x2_), y2(y2_) {}
 
-        // Destructor
-        ~PointCorrespondence2D2D() {}
+  // Destructor
+  ~PointCorrespondence2D2D() {}
 
-        // Getter for the 2D point in the first image
-        FORCE_INLINE double getX1() const
-        {
-            return x1;
-        }
+  // Getter for the 2D point in the first image
+  FORCE_INLINE double getX1() const { return x1; }
 
-        // Getter for the 2D point in the first image
-        FORCE_INLINE double getY1() const
-        {
-            return y1;
-        }
+  // Getter for the 2D point in the first image
+  FORCE_INLINE double getY1() const { return y1; }
 
-        // Getter for the 2D point in the second image
-        FORCE_INLINE double getX2() const
-        {
-            return x2;
-        }
+  // Getter for the 2D point in the second image
+  FORCE_INLINE double getX2() const { return x2; }
 
-        // Getter for the 2D point in the second image
-        FORCE_INLINE double getY2() const
-        {
-            return y2;
-        }
+  // Getter for the 2D point in the second image
+  FORCE_INLINE double getY2() const { return y2; }
 
-        // Getter for mutable 2D point in the first image
-        FORCE_INLINE double& getX1()
-        {
-            return x1;
-        }
+  // Getter for mutable 2D point in the first image
+  FORCE_INLINE double& getX1() { return x1; }
 
-        // Getter for mutable 2D point in the first image
-        FORCE_INLINE double& getY1()
-        {
-            return y1;
-        }
+  // Getter for mutable 2D point in the first image
+  FORCE_INLINE double& getY1() { return y1; }
 
-        // Getter for mutable 2D point in the second image
-        FORCE_INLINE double& getX2()
-        {
-            return x2;
-        }
+  // Getter for mutable 2D point in the second image
+  FORCE_INLINE double& getX2() { return x2; }
 
-        // Getter for mutable 2D point in the second image
-        FORCE_INLINE double& getY2()
-        {
-            return y2;
-        }
-}; 
+  // Getter for mutable 2D point in the second image
+  FORCE_INLINE double& getY2() { return y2; }
+};

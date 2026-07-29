@@ -40,41 +40,28 @@
 namespace superansac {
 namespace models {
 
-enum Types
-{
-    Homography,
-    FundamentalMatrix,
-    EssentialMatrix,
-    RigidTransformation,
-    AbsolutePose
-};
+enum Types { Homography, FundamentalMatrix, EssentialMatrix, RigidTransformation, AbsolutePose };
 
 // This is the model class. It is used to store the data and the model parameters.
 class Model {
-public:
-    Model () {}
-    ~Model() {}
+ public:
+  Model() {}
+  ~Model() {}
 
-    // Set the data of the model. Accepting the fixed-capacity type means
-    // expressions are evaluated into a stack temporary (no aliasing issues,
-    // no heap allocation).
-    void setData(const ModelMatrix &kData_) {
-        data = kData_;
-    }
+  // Set the data of the model. Accepting the fixed-capacity type means
+  // expressions are evaluated into a stack temporary (no aliasing issues,
+  // no heap allocation).
+  void setData(const ModelMatrix& kData_) { data = kData_; }
 
-    // Return the data of the model
-    const ModelMatrix &getData() const {
-        return data;
-    }
+  // Return the data of the model
+  const ModelMatrix& getData() const { return data; }
 
-    // Return the data of the model
-    ModelMatrix &getMutableData() {
-        return data;
-    }
+  // Return the data of the model
+  ModelMatrix& getMutableData() { return data; }
 
-protected:
-    ModelMatrix data;
+ protected:
+  ModelMatrix data;
 };
 
-}
-}
+}  // namespace models
+}  // namespace superansac

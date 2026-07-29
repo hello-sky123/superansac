@@ -49,48 +49,37 @@
 namespace superansac {
 namespace scoring {
 
-    // Enum defining available sampler types
-    enum class ScoringType {
-        RANSAC,
-        MSAC,
-        MAGSAC,
-        MINPRAN,
-        ACRANSAC,
-        GAU,
-        ML,
-        GRID
-    };
+// Enum defining available sampler types
+enum class ScoringType { RANSAC, MSAC, MAGSAC, MINPRAN, ACRANSAC, GAU, ML, GRID };
 
-    // Factory function to create samplers
-    template <size_t _DimensionNumber>
-    FORCE_INLINE std::unique_ptr<AbstractScoring> createScoring(const ScoringType kType_, 
-        const bool kUseSPRT_ = true) 
-    {
-        switch (kType_) 
-        {
-            case ScoringType::RANSAC:
-                return std::make_unique<RANSACScoring>();
-            case ScoringType::MSAC:
-                return std::make_unique<MSACScoring>();
-            case ScoringType::MINPRAN:
-                return std::make_unique<MINPRANScoring>();
-            case ScoringType::ACRANSAC:
-                return std::make_unique<ACRANSACScoring>();
-            case ScoringType::GAU:
-                return std::make_unique<GAUScoring>();
-            case ScoringType::ML:
-                return std::make_unique<MLScoring>();
-            case ScoringType::GRID:
-                return std::make_unique<GridScoring<_DimensionNumber>>();
-            case ScoringType::MAGSAC:
-                if (kUseSPRT_)
-                    return std::make_unique<MAGSACSPRTScoring>();
-                else
-                    return std::make_unique<MAGSACScoring>();
-            default:
-                throw std::invalid_argument("Unknown Sampler Type");
-        }
-    }
+// Factory function to create samplers
+template <size_t _DimensionNumber>
+FORCE_INLINE std::unique_ptr<AbstractScoring> createScoring(const ScoringType kType_,
+                                                            const bool kUseSPRT_ = true) {
+  switch (kType_) {
+    case ScoringType::RANSAC:
+      return std::make_unique<RANSACScoring>();
+    case ScoringType::MSAC:
+      return std::make_unique<MSACScoring>();
+    case ScoringType::MINPRAN:
+      return std::make_unique<MINPRANScoring>();
+    case ScoringType::ACRANSAC:
+      return std::make_unique<ACRANSACScoring>();
+    case ScoringType::GAU:
+      return std::make_unique<GAUScoring>();
+    case ScoringType::ML:
+      return std::make_unique<MLScoring>();
+    case ScoringType::GRID:
+      return std::make_unique<GridScoring<_DimensionNumber>>();
+    case ScoringType::MAGSAC:
+      if (kUseSPRT_)
+        return std::make_unique<MAGSACSPRTScoring>();
+      else
+        return std::make_unique<MAGSACScoring>();
+    default:
+      throw std::invalid_argument("Unknown Sampler Type");
+  }
+}
 
-}
-}
+}  // namespace scoring
+}  // namespace superansac

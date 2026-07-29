@@ -39,104 +39,82 @@
 #include "../models/model.h"
 #include "../utils/types.h"
 
-namespace superansac
-{
-	namespace estimator
-	{
-		namespace solver
-		{
-			// Plane-and-parallax fundamental matrix solver (used by DEGENSAC).
-			// Given a homography H induced by the dominant plane, two off-plane
-			// correspondences determine the epipole as the intersection of the
-			// lines connecting the H-projected and observed points; then
-			// F = [e']_x * H. Ported from graph-cut-ransac's
-			// FundamentalMatrixPlaneParallaxSolver.
-			class FundamentalMatrixPlaneParallaxSolver : public AbstractSolver
-			{
-			protected:
-				const ModelMatrix *homography; // Not owned; set per DEGENSAC event
+namespace superansac {
+namespace estimator {
+namespace solver {
+// Plane-and-parallax fundamental matrix solver (used by DEGENSAC).
+// Given a homography H induced by the dominant plane, two off-plane
+// correspondences determine the epipole as the intersection of the
+// lines connecting the H-projected and observed points; then
+// F = [e']_x * H. Ported from graph-cut-ransac's
+// FundamentalMatrixPlaneParallaxSolver.
+class FundamentalMatrixPlaneParallaxSolver : public AbstractSolver {
+ protected:
+  const ModelMatrix* homography;  // Not owned; set per DEGENSAC event
 
-			public:
-				FundamentalMatrixPlaneParallaxSolver() : homography(nullptr)
-				{
-				}
+ public:
+  FundamentalMatrixPlaneParallaxSolver() : homography(nullptr) {}
 
-				~FundamentalMatrixPlaneParallaxSolver()
-				{
-				}
+  ~FundamentalMatrixPlaneParallaxSolver() {}
 
-				void setHomography(const ModelMatrix *kHomography_)
-				{
-					homography = kHomography_;
-				}
+  void setHomography(const ModelMatrix* kHomography_) { homography = kHomography_; }
 
-				// The maximum number of solutions returned by the estimator
-				size_t maximumSolutions() const override
-				{
-					return 1;
-				}
+  // The maximum number of solutions returned by the estimator
+  size_t maximumSolutions() const override { return 1; }
 
-				// The minimum number of points required for the estimation
-				size_t sampleSize() const override
-				{
-					return 2;
-				}
+  // The minimum number of points required for the estimation
+  size_t sampleSize() const override { return 2; }
 
-				FORCE_INLINE bool estimateModel(
-					const DataMatrix& kData_, // The set of data points
-					const size_t *kSample_, // The sample used for the estimation
-					const size_t kSampleNumber_, // The size of the sample
-					std::vector<models::Model> &models_, // The estimated model parameters
-					const double *kWeights_ = nullptr) const override // The weight for each point
-				{
-					// Check if the required homography has been set
-					if (homography == nullptr)
-						return false;
+  FORCE_INLINE bool estimateModel(
+      const DataMatrix& kData_,                          // The set of data points
+      const size_t* kSample_,                            // The sample used for the estimation
+      const size_t kSampleNumber_,                       // The size of the sample
+      std::vector<models::Model>& models_,               // The estimated model parameters
+      const double* kWeights_ = nullptr) const override  // The weight for each point
+  {
+    // Check if the required homography has been set
+    if (homography == nullptr) return false;
 
-					// The rows of the two sampled correspondences
-					const double *kPoint1 = kData_.data() + kSample_[0] * kData_.cols();
-					const double *kPoint2 = kData_.data() + kSample_[1] * kData_.cols();
+    // The rows of the two sampled correspondences
+    const double* kPoint1 = kData_.data() + kSample_[0] * kData_.cols();
+    const double* kPoint2 = kData_.data() + kSample_[1] * kData_.cols();
 
-					const Eigen::Vector3d sourcePoint1(kPoint1[0], kPoint1[1], 1),
-						destinationPoint1(kPoint1[2], kPoint1[3], 1),
-						sourcePoint2(kPoint2[0], kPoint2[1], 1),
-						destinationPoint2(kPoint2[2], kPoint2[3], 1);
+    const Eigen::Vector3d sourcePoint1(kPoint1[0], kPoint1[1], 1),
+        destinationPoint1(kPoint1[2], kPoint1[3], 1), sourcePoint2(kPoint2[0], kPoint2[1], 1),
+        destinationPoint2(kPoint2[2], kPoint2[3], 1);
 
-					// The homography as a fixed-size matrix for the products below
-					const Eigen::Matrix3d kHomography = homography->block<3, 3>(0, 0);
+    // The homography as a fixed-size matrix for the products below
+    const Eigen::Matrix3d kHomography = homography->block<3, 3>(0, 0);
 
-					// Projecting the points by the homography matrix
-					const Eigen::Vector3d projectedPoint1 = kHomography * sourcePoint1,
-						projectedPoint2 = kHomography * sourcePoint2;
+    // Projecting the points by the homography matrix
+    const Eigen::Vector3d projectedPoint1 = kHomography * sourcePoint1,
+                          projectedPoint2 = kHomography * sourcePoint2;
 
-					// Calculating the parameters of the lines between the projected and original points
-					const Eigen::Vector3d line1 = projectedPoint1.cross(destinationPoint1),
-						line2 = projectedPoint2.cross(destinationPoint2);
+    // Calculating the parameters of the lines between the projected and original points
+    const Eigen::Vector3d line1 = projectedPoint1.cross(destinationPoint1),
+                          line2 = projectedPoint2.cross(destinationPoint2);
 
-					// Estimating the epipole
-					const Eigen::Vector3d epipole = line1.cross(line2);
+    // Estimating the epipole
+    const Eigen::Vector3d epipole = line1.cross(line2);
 
-					// There is no intersection (e.g., both points lie on the plane)
-					if (std::abs(epipole(2)) < std::numeric_limits<double>::epsilon())
-						return false;
+    // There is no intersection (e.g., both points lie on the plane)
+    if (std::abs(epipole(2)) < std::numeric_limits<double>::epsilon()) return false;
 
-					// Calculate the cross-product matrix of the epipole
-					Eigen::Matrix3d epipolarCross;
-					epipolarCross << 0, -epipole(2), epipole(1),
-						epipole(2), 0, -epipole(0),
-						-epipole(1), epipole(0), 0;
+    // Calculate the cross-product matrix of the epipole
+    Eigen::Matrix3d epipolarCross;
+    epipolarCross << 0, -epipole(2), epipole(1), epipole(2), 0, -epipole(0), -epipole(1),
+        epipole(0), 0;
 
-					// Calculate the fundamental matrix
-					const Eigen::Matrix3d kFundamentalMatrix = epipolarCross * kHomography;
-					if (!kFundamentalMatrix.allFinite())
-						return false;
+    // Calculate the fundamental matrix
+    const Eigen::Matrix3d kFundamentalMatrix = epipolarCross * kHomography;
+    if (!kFundamentalMatrix.allFinite()) return false;
 
-					models::Model model;
-					model.getMutableData() = kFundamentalMatrix;
-					models_.emplace_back(model);
-					return true;
-				}
-			};
-		}
-	}
-}
+    models::Model model;
+    model.getMutableData() = kFundamentalMatrix;
+    models_.emplace_back(model);
+    return true;
+  }
+};
+}  // namespace solver
+}  // namespace estimator
+}  // namespace superansac

@@ -44,190 +44,166 @@
 namespace superansac {
 namespace scoring {
 
-class MINPRANScoring : public AbstractScoring
-{
-    protected:
-        const size_t kStepNumber;
-        std::vector<std::vector<unsigned long long>> binomCoeffs;
+class MINPRANScoring : public AbstractScoring {
+ protected:
+  const size_t kStepNumber;
+  std::vector<std::vector<unsigned long long>> binomCoeffs;
 
+ public:
+  // Constructor
+  MINPRANScoring() : kStepNumber(25) {}
 
-    public:
-        // Constructor 
-        MINPRANScoring() : kStepNumber(25) {}
+  // Destructor
+  ~MINPRANScoring() {}
 
-        // Destructor
-        ~MINPRANScoring() {}
+  // Set the threshold
+  FORCE_INLINE void setThreshold(const double kThreshold_) {
+    threshold = kThreshold_;
+    squaredThreshold = threshold * threshold;
+  }
 
-        // Set the threshold
-        FORCE_INLINE void setThreshold(const double kThreshold_)
-        {
-            threshold = kThreshold_;
-            squaredThreshold = threshold * threshold;
-        }
-        
-        FORCE_INLINE void updateSPRTParameters(const Score& currentBest, 
-            int iterationIndex, 
-            size_t totalPoints)
-        {
-            
-        }
+  FORCE_INLINE void updateSPRTParameters(const Score& currentBest, int iterationIndex,
+                                         size_t totalPoints) {}
 
-        // Function to calculate logarithm of factorial using Stirling's approximation
-        double logFactorial(int n) const 
-        {
-            if (n <= 1) return 0.0;
-            double x = n;
-            return x * log(x) - x + 0.5 * log(2 * M_PI * x);
-        }
-        
-        // Function to calculate the binomial coefficient N choose k using logarithms to prevent overflow
-        double binomialCoefficient(int N, int k) const {
-            return exp(logFactorial(N) - logFactorial(k) - logFactorial(N - k));
-        }
+  // Function to calculate logarithm of factorial using Stirling's approximation
+  double logFactorial(int n) const {
+    if (n <= 1) return 0.0;
+    double x = n;
+    return x * log(x) - x + 0.5 * log(2 * M_PI * x);
+  }
 
-        // Function to perform numerical integration using the trapezoidal rule
-        double integrate(std::function<double(double)> f, double a, double b, int n = 1000) const {
-            double h = (b - a) / n;
-            double integral = (f(a) + f(b)) / 2.0;
-            for (int i = 1; i < n; ++i) {
-                integral += f(a + i * h);
-            }
-            integral *= h;
-            return integral;
-        }
+  // Function to calculate the binomial coefficient N choose k using logarithms to prevent overflow
+  double binomialCoefficient(int N, int k) const {
+    return exp(logFactorial(N) - logFactorial(k) - logFactorial(N - k));
+  }
 
-        // Function to calculate the integrand t^(k-1) * (1 - t)^(N - k)
-        std::function<double(double)> getIntegrand(int k, int N) const 
-        {
-            return [k, N](double t) {
-                return pow(t, k - 1) * pow(1 - t, N - k);
-            };
-        }
+  // Function to perform numerical integration using the trapezoidal rule
+  double integrate(std::function<double(double)> f, double a, double b, int n = 1000) const {
+    double h = (b - a) / n;
+    double integral = (f(a) + f(b)) / 2.0;
+    for (int i = 1; i < n; ++i) {
+      integral += f(a + i * h);
+    }
+    integral *= h;
+    return integral;
+  }
 
-        // Sample function
-        FORCE_INLINE Score score(
-            const DataMatrix &kData_, // Data matrix
-            const models::Model &kModel_, // The model to be scored
-            const estimator::Estimator *kEstimator_, // Estimator
-            std::vector<size_t> &inliers_, // Inlier indices
-            const bool kStoreInliers_ = true,
-            const Score& kBestScore_ = Score(),
-            std::vector<const std::vector<size_t>*> *kPotentialInlierSets_ = nullptr) const // The potential inlier sets from the inlier selector
-        {   
-            // Create a static empty Score
-            static const Score kEmptyScore;
-            // The number of points
-            const int kPointNumber = kData_.rows();
-            // The squared residual
-            double squaredResidual;
-            // Score and inlier number
-            int inlierNumber = 0;
-            // The score of the previous best model
-            const double kBestScoreValue = kBestScore_.getValue();
-            // 
-            std::vector<std::pair<double,size_t>> residuals;
-            residuals.reserve(kPointNumber);
+  // Function to calculate the integrand t^(k-1) * (1 - t)^(N - k)
+  std::function<double(double)> getIntegrand(int k, int N) const {
+    return [k, N](double t) { return pow(t, k - 1) * pow(1 - t, N - k); };
+  }
 
-            // Iterate through all points, calculate the squaredResiduals and store the points as inliers if needed.
-            for (int pointIdx = 0; pointIdx < kPointNumber; ++pointIdx)
-            {
-                // Calculate the point-to-model residual
-                squaredResidual =
-                    kEstimator_->squaredResidual(kData_.row(pointIdx).data(),
-                        kModel_);
+  // Sample function
+  FORCE_INLINE Score score(const DataMatrix& kData_,                 // Data matrix
+                           const models::Model& kModel_,             // The model to be scored
+                           const estimator::Estimator* kEstimator_,  // Estimator
+                           std::vector<size_t>& inliers_,            // Inlier indices
+                           const bool kStoreInliers_ = true, const Score& kBestScore_ = Score(),
+                           std::vector<const std::vector<size_t>*>* kPotentialInlierSets_ =
+                               nullptr) const  // The potential inlier sets from the inlier selector
+  {
+    // Create a static empty Score
+    static const Score kEmptyScore;
+    // The number of points
+    const int kPointNumber = kData_.rows();
+    // The squared residual
+    double squaredResidual;
+    // Score and inlier number
+    int inlierNumber = 0;
+    // The score of the previous best model
+    const double kBestScoreValue = kBestScore_.getValue();
+    //
+    std::vector<std::pair<double, size_t>> residuals;
+    residuals.reserve(kPointNumber);
 
-                // If the residual is smaller than the threshold, store it as an inlier and
-                // increase the score.
-                if (squaredResidual < squaredThreshold)
-                    residuals.emplace_back(std::make_pair(squaredResidual,pointIdx));
-            }
+    // Iterate through all points, calculate the squaredResiduals and store the points as inliers if needed.
+    for (int pointIdx = 0; pointIdx < kPointNumber; ++pointIdx) {
+      // Calculate the point-to-model residual
+      squaredResidual = kEstimator_->squaredResidual(kData_.row(pointIdx).data(), kModel_);
 
-            // Sort the residuals
-            std::sort(residuals.begin(), residuals.end(), [](const std::pair<double,size_t> &a, const std::pair<double,size_t> &b) { return a.first < b.first; });
+      // If the residual is smaller than the threshold, store it as an inlier and
+      // increase the score.
+      if (squaredResidual < squaredThreshold)
+        residuals.emplace_back(std::make_pair(squaredResidual, pointIdx));
+    }
 
-            // Get the maximum residual
-            const double kMaxResidual = residuals.back().first;
-            const double kResidualStep = kMaxResidual / kStepNumber;
-            const size_t kSampleSize = kEstimator_->sampleSize();
-            double currentThreshold = 0;
-            size_t currentMaxIdx = 0;
-            double randomness,
-                minRandomness = std::numeric_limits<double>::max(),
-                bestThreshold = 0,
-                bestInlierNumber = 0;
+    // Sort the residuals
+    std::sort(residuals.begin(), residuals.end(),
+              [](const std::pair<double, size_t>& a, const std::pair<double, size_t>& b) {
+                return a.first < b.first;
+              });
 
-            // Iterate through the thresholds
-            for (currentThreshold = kResidualStep; currentThreshold <= kMaxResidual; currentThreshold += kResidualStep)
-            {
-                // Count the inliers of the current threshold
-                while (currentMaxIdx + 1 < residuals.size() && residuals[currentMaxIdx + 1].first < currentThreshold)
-                    ++currentMaxIdx;
+    // Get the maximum residual
+    const double kMaxResidual = residuals.back().first;
+    const double kResidualStep = kMaxResidual / kStepNumber;
+    const size_t kSampleSize = kEstimator_->sampleSize();
+    double currentThreshold = 0;
+    size_t currentMaxIdx = 0;
+    double randomness, minRandomness = std::numeric_limits<double>::max(), bestThreshold = 0,
+                       bestInlierNumber = 0;
 
-                // If the number of inliers is smaller than the sample size, continue
-                if (currentMaxIdx < kSampleSize + 1)
-                    continue;
+    // Iterate through the thresholds
+    for (currentThreshold = kResidualStep; currentThreshold <= kMaxResidual;
+         currentThreshold += kResidualStep) {
+      // Count the inliers of the current threshold
+      while (currentMaxIdx + 1 < residuals.size() &&
+             residuals[currentMaxIdx + 1].first < currentThreshold)
+        ++currentMaxIdx;
 
-                // Calculate the binomial coefficient part
-                double binomCoeff = binomialCoefficient(kPointNumber, currentMaxIdx - 1);
-                
-                // Get the integrand function
-                auto integrand = getIntegrand(currentMaxIdx, kPointNumber);
-                
-                // Calculate the integral part of the expression using adaptive quadrature
-                double integralPart = integrate(integrand, 0, currentThreshold / threshold);
-                
-                // Calculate the final result
-                double randomness = binomCoeff * integralPart;
+      // If the number of inliers is smaller than the sample size, continue
+      if (currentMaxIdx < kSampleSize + 1) continue;
 
-                // Check if the randomness is NaN or inf
-                if (std::isnan(randomness) || std::isinf(randomness))
-                    continue;
+      // Calculate the binomial coefficient part
+      double binomCoeff = binomialCoefficient(kPointNumber, currentMaxIdx - 1);
 
-                // Calculate the final result
-                if (randomness < minRandomness)
-                {
-                    minRandomness = randomness;
-                    bestThreshold = currentThreshold;
-                    bestInlierNumber = currentMaxIdx;
-                }
-            }
+      // Get the integrand function
+      auto integrand = getIntegrand(currentMaxIdx, kPointNumber);
 
-            // Store the inliers
-            if (kStoreInliers_)
-            {
-                inliers_.reserve(bestInlierNumber);
-                for (size_t i = 0; i <= bestInlierNumber; ++i)
-                    inliers_.push_back(residuals[i].second);
-            }
+      // Calculate the integral part of the expression using adaptive quadrature
+      double integralPart = integrate(integrand, 0, currentThreshold / threshold);
 
-            if (bestInlierNumber < kSampleSize)
-                return kEmptyScore;
-            
-            return Score(bestInlierNumber, 1.0 / abs(minRandomness));
-        }
+      // Calculate the final result
+      double randomness = binomCoeff * integralPart;
 
-        // Get weights for the points
-        FORCE_INLINE void getWeights(
-            const DataMatrix &kData_, // Data matrix
-            const models::Model &kModel_, // The model to be scored
-            const estimator::Estimator *kEstimator_, // Estimator
-            std::vector<double> &weights_, // The weights of the points
-            const std::vector<size_t> *kIndices_ = nullptr) const // The indices of the points 
-        {
-            if (kIndices_ == nullptr)
-            {
-                weights_.resize(kData_.rows());
-                for (size_t i = 0; i < kData_.rows(); ++i)
-                    weights_[i] = 1.0;
-            }
-            else
-            {
-                weights_.resize(kIndices_->size());
-                for (size_t i = 0; i < kIndices_->size(); ++i)
-                    weights_[i] = 1.0;
-            }
-        }
+      // Check if the randomness is NaN or inf
+      if (std::isnan(randomness) || std::isinf(randomness)) continue;
+
+      // Calculate the final result
+      if (randomness < minRandomness) {
+        minRandomness = randomness;
+        bestThreshold = currentThreshold;
+        bestInlierNumber = currentMaxIdx;
+      }
+    }
+
+    // Store the inliers
+    if (kStoreInliers_) {
+      inliers_.reserve(bestInlierNumber);
+      for (size_t i = 0; i <= bestInlierNumber; ++i) inliers_.push_back(residuals[i].second);
+    }
+
+    if (bestInlierNumber < kSampleSize) return kEmptyScore;
+
+    return Score(bestInlierNumber, 1.0 / abs(minRandomness));
+  }
+
+  // Get weights for the points
+  FORCE_INLINE void getWeights(
+      const DataMatrix& kData_,                              // Data matrix
+      const models::Model& kModel_,                          // The model to be scored
+      const estimator::Estimator* kEstimator_,               // Estimator
+      std::vector<double>& weights_,                         // The weights of the points
+      const std::vector<size_t>* kIndices_ = nullptr) const  // The indices of the points
+  {
+    if (kIndices_ == nullptr) {
+      weights_.resize(kData_.rows());
+      for (size_t i = 0; i < kData_.rows(); ++i) weights_[i] = 1.0;
+    } else {
+      weights_.resize(kIndices_->size());
+      for (size_t i = 0; i < kIndices_->size(); ++i) weights_[i] = 1.0;
+    }
+  }
 };
 
-}
-}
+}  // namespace scoring
+}  // namespace superansac

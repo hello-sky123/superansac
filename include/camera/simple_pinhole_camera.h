@@ -39,155 +39,131 @@
 #include "../utils/types.h"
 #include "../models/model.h"
 
-namespace superansac 
-{
-	namespace camera
-	{
-		class SimplePinholeCamera : public AbstractCamera
-		{
-		public:
-			SimplePinholeCamera(const std::vector<double> &kParams_) : 
-				AbstractCamera(kParams_)
-			{
-				if (!validateParameters(kParams_))
-					throw std::invalid_argument("The number of parameters for the simple radial camera should be 4.");
-			}
+namespace superansac {
+namespace camera {
+class SimplePinholeCamera : public AbstractCamera {
+ public:
+  SimplePinholeCamera(const std::vector<double>& kParams_) : AbstractCamera(kParams_) {
+    if (!validateParameters(kParams_))
+      throw std::invalid_argument(
+          "The number of parameters for the simple radial camera should be 4.");
+  }
 
-            ~SimplePinholeCamera() override = default;
+  ~SimplePinholeCamera() override = default;
 
-			double focalLength() const override
-			{
-				return parameters[0];
-			}
+  double focalLength() const override { return parameters[0]; }
 
-			void rescale(double kScale_) override
-			{
-				parameters = {parameters[0] * kScale_, // focal length
-					parameters[1] * kScale_, // principal point x
-					parameters[2] * kScale_}; // principal point y
-			}
+  void rescale(double kScale_) override {
+    parameters = {parameters[0] * kScale_,   // focal length
+                  parameters[1] * kScale_,   // principal point x
+                  parameters[2] * kScale_};  // principal point y
+  }
 
-			// Project a 2D point from pixel to image coordinates
-            void fromImageToPixelCoordinates(
-				const std::vector<Eigen::Vector2d> &kNormalizedData_,
-				std::vector<Eigen::Vector2d> &kData_) const override
-			{
-				if (kData_.size() != kNormalizedData_.size())
-					kData_.resize(kNormalizedData_.size());
-				
-				// Get the camera parameters
-				const double &focalLength = parameters[0];
-				const double &cx = parameters[1];
-				const double &cy = parameters[2];
+  // Project a 2D point from pixel to image coordinates
+  void fromImageToPixelCoordinates(const std::vector<Eigen::Vector2d>& kNormalizedData_,
+                                   std::vector<Eigen::Vector2d>& kData_) const override {
+    if (kData_.size() != kNormalizedData_.size()) kData_.resize(kNormalizedData_.size());
 
-				// Normalize the points
-				for (size_t pointIdx = 0; pointIdx < kNormalizedData_.size(); ++pointIdx)
-				{
-					// Get the point
-					double x = kNormalizedData_[pointIdx](0);
-					double y = kNormalizedData_[pointIdx](1);
-					
-					// Apply radial distortion and scale the point
-					x = x * focalLength + cx;
-					y = y * focalLength + cy;
+    // Get the camera parameters
+    const double& focalLength = parameters[0];
+    const double& cx = parameters[1];
+    const double& cy = parameters[2];
 
-					// Store the normalized point
-					kData_[pointIdx](0) = x;
-					kData_[pointIdx](1) = y;
+    // Normalize the points
+    for (size_t pointIdx = 0; pointIdx < kNormalizedData_.size(); ++pointIdx) {
+      // Get the point
+      double x = kNormalizedData_[pointIdx](0);
+      double y = kNormalizedData_[pointIdx](1);
 
-					// Copy the rest of the columns
-					for (size_t i = 2; i < kData_[pointIdx].cols(); ++i)
-						kData_[pointIdx](i) = kNormalizedData_[pointIdx](i);
-				}
-			}
+      // Apply radial distortion and scale the point
+      x = x * focalLength + cx;
+      y = y * focalLength + cy;
 
-			// Project a 2D point from pixel to image coordinates
-            void fromImageToPixelCoordinates(
-				const DataMatrix &kNormalizedData_,
-				DataMatrix &kData_) const override
-			{
-				if (kData_.rows() != kNormalizedData_.rows())
-					kData_.resize(kNormalizedData_.rows(), kNormalizedData_.cols());
-				
-				// Get the camera parameters
-				const double &focalLength = parameters[0];
-				const double &cx = parameters[1];
-				const double &cy = parameters[2];
+      // Store the normalized point
+      kData_[pointIdx](0) = x;
+      kData_[pointIdx](1) = y;
 
-				// Normalize the points
-				for (size_t pointIdx = 0; pointIdx < kNormalizedData_.rows(); ++pointIdx)
-				{
-					// Get the point
-					double x = kNormalizedData_(pointIdx, 0);
-					double y = kNormalizedData_(pointIdx, 1);
-					
-					// Apply radial distortion and scale the point
-					x = x * focalLength + cx;
-					y = y * focalLength + cy;
+      // Copy the rest of the columns
+      for (size_t i = 2; i < kData_[pointIdx].cols(); ++i)
+        kData_[pointIdx](i) = kNormalizedData_[pointIdx](i);
+    }
+  }
 
-					// Store the normalized point
-					kData_(pointIdx, 0) = x;
-					kData_(pointIdx, 1) = y;
+  // Project a 2D point from pixel to image coordinates
+  void fromImageToPixelCoordinates(const DataMatrix& kNormalizedData_,
+                                   DataMatrix& kData_) const override {
+    if (kData_.rows() != kNormalizedData_.rows())
+      kData_.resize(kNormalizedData_.rows(), kNormalizedData_.cols());
 
-					// Copy the rest of the columns
-					for (size_t i = 2; i < kData_.cols(); ++i)
-						kData_(pointIdx, i) = kNormalizedData_(pointIdx, i);
-				}
-			}
-			
-			// Project a 2D point from pixel to image coordinates
-            void fromPixelToImageCoordinates(
-				const DataMatrix &kData_,
-				DataMatrix &kNormalizedData_) const override
-			{
-				if (kData_.rows() != kNormalizedData_.rows())
-					kNormalizedData_.resize(kData_.rows(), kData_.cols());
-				
-				// Get the camera parameters
-				const double &focalLength = parameters[0];
-				const double &cx = parameters[1];
-				const double &cy = parameters[2];
+    // Get the camera parameters
+    const double& focalLength = parameters[0];
+    const double& cx = parameters[1];
+    const double& cy = parameters[2];
 
-				// Normalize the points
-				for (size_t pointIdx = 0; pointIdx < kData_.rows(); ++pointIdx)
-				{
-					// Get the point
-					double x = kData_(pointIdx, 0);
-					double y = kData_(pointIdx, 1);
+    // Normalize the points
+    for (size_t pointIdx = 0; pointIdx < kNormalizedData_.rows(); ++pointIdx) {
+      // Get the point
+      double x = kNormalizedData_(pointIdx, 0);
+      double y = kNormalizedData_(pointIdx, 1);
 
-					// Normalize the point
-					x = (x - cx) / focalLength;
-					y = (y - cy) / focalLength;
+      // Apply radial distortion and scale the point
+      x = x * focalLength + cx;
+      y = y * focalLength + cy;
 
-					// Store the normalized point
-					kNormalizedData_(pointIdx, 0) = x;
-					kNormalizedData_(pointIdx, 1) = y;
+      // Store the normalized point
+      kData_(pointIdx, 0) = x;
+      kData_(pointIdx, 1) = y;
 
-					// Copy the rest of the columns
-					for (size_t i = 2; i < kData_.cols(); ++i)
-						kNormalizedData_(pointIdx, i) = kData_(pointIdx, i);
-				}
-			}
-			
-            double normalizeThreshold(double kThreshold_) const override
-			{
-				return kThreshold_ / parameters[0];
-			} 
-			
-            double unnormalizeThreshold(double kThreshold_) const override
-			{
-				return kThreshold_ * parameters[0];
-			} 
+      // Copy the rest of the columns
+      for (size_t i = 2; i < kData_.cols(); ++i)
+        kData_(pointIdx, i) = kNormalizedData_(pointIdx, i);
+    }
+  }
 
-            bool validateParameters(const std::vector<double> &kParams_) const override
-			{
-				return kParams_.size() == 3;
-			}
+  // Project a 2D point from pixel to image coordinates
+  void fromPixelToImageCoordinates(const DataMatrix& kData_,
+                                   DataMatrix& kNormalizedData_) const override {
+    if (kData_.rows() != kNormalizedData_.rows())
+      kNormalizedData_.resize(kData_.rows(), kData_.cols());
 
-			size_t getModelId() const override
-			{
-				return 0;
-			}
-		};
-	}
-}
+    // Get the camera parameters
+    const double& focalLength = parameters[0];
+    const double& cx = parameters[1];
+    const double& cy = parameters[2];
+
+    // Normalize the points
+    for (size_t pointIdx = 0; pointIdx < kData_.rows(); ++pointIdx) {
+      // Get the point
+      double x = kData_(pointIdx, 0);
+      double y = kData_(pointIdx, 1);
+
+      // Normalize the point
+      x = (x - cx) / focalLength;
+      y = (y - cy) / focalLength;
+
+      // Store the normalized point
+      kNormalizedData_(pointIdx, 0) = x;
+      kNormalizedData_(pointIdx, 1) = y;
+
+      // Copy the rest of the columns
+      for (size_t i = 2; i < kData_.cols(); ++i)
+        kNormalizedData_(pointIdx, i) = kData_(pointIdx, i);
+    }
+  }
+
+  double normalizeThreshold(double kThreshold_) const override {
+    return kThreshold_ / parameters[0];
+  }
+
+  double unnormalizeThreshold(double kThreshold_) const override {
+    return kThreshold_ * parameters[0];
+  }
+
+  bool validateParameters(const std::vector<double>& kParams_) const override {
+    return kParams_.size() == 3;
+  }
+
+  size_t getModelId() const override { return 0; }
+};
+}  // namespace camera
+}  // namespace superansac

@@ -41,332 +41,300 @@
 #include "../utils/types.h"
 #include "GCoptimization.h"
 
-namespace superansac
-{
-	namespace local_optimization
-	{
-		// Templated class for estimating a model for RANSAC. This class is purely a
-		// virtual class and should be implemented for the specific task that RANSAC is
-		// being used for. Two methods must be implemented: estimateModel and residual. All
-		// other methods are optional, but will likely enhance the quality of the RANSAC
-		// output.
-		class GraphCutRANSACOptimizer : public LocalOptimizer
-		{
-		protected:
-        	neighborhood::AbstractNeighborhoodGraph *neighborhoodGraph;
-			size_t maxIterations,
-				graphCutNumber,
-				sampleSizeMultiplier;
-			double spatialCoherenceWeight;
+namespace superansac {
+namespace local_optimization {
+// Templated class for estimating a model for RANSAC. This class is purely a
+// virtual class and should be implemented for the specific task that RANSAC is
+// being used for. Two methods must be implemented: estimateModel and residual. All
+// other methods are optional, but will likely enhance the quality of the RANSAC
+// output.
+class GraphCutRANSACOptimizer : public LocalOptimizer {
+ protected:
+  neighborhood::AbstractNeighborhoodGraph* neighborhoodGraph;
+  size_t maxIterations, graphCutNumber, sampleSizeMultiplier;
+  double spatialCoherenceWeight;
 
-		public:
-			GraphCutRANSACOptimizer() : maxIterations(50),
-				graphCutNumber(20),
-				sampleSizeMultiplier(7),
-				spatialCoherenceWeight(0.1)  // Initialize to default value
-			{
+ public:
+  GraphCutRANSACOptimizer()
+      : maxIterations(50),
+        graphCutNumber(20),
+        sampleSizeMultiplier(7),
+        spatialCoherenceWeight(0.1)  // Initialize to default value
+  {}
 
-			}
+  ~GraphCutRANSACOptimizer() {}
 
-			~GraphCutRANSACOptimizer() {}
+  void setNeighborhood(neighborhood::AbstractNeighborhoodGraph* kNeighborhood_) {
+    neighborhoodGraph = kNeighborhood_;
+  }
 
-			void setNeighborhood(neighborhood::AbstractNeighborhoodGraph *kNeighborhood_)
-			{
-				neighborhoodGraph = kNeighborhood_;
-			}
+  void setMaxIterations(const size_t kMaxIterations_) { maxIterations = kMaxIterations_; }
 
-			void setMaxIterations(const size_t kMaxIterations_)
-			{
-				maxIterations = kMaxIterations_;
-			}
+  void setGraphCutNumber(const size_t kGraphCutNumber_) { graphCutNumber = kGraphCutNumber_; }
 
-			void setGraphCutNumber(const size_t kGraphCutNumber_)
-			{
-				graphCutNumber = kGraphCutNumber_;
-			}
+  void setSampleSizeMultiplier(const size_t kSampleSizeMultiplier_) {
+    sampleSizeMultiplier = kSampleSizeMultiplier_;
+  }
 
-			void setSampleSizeMultiplier(const size_t kSampleSizeMultiplier_)
-			{
-				sampleSizeMultiplier = kSampleSizeMultiplier_;
-			}
+  void setSpatialCoherenceWeight(const double kSpatialCoherenceWeight_) {
+    spatialCoherenceWeight = kSpatialCoherenceWeight_;
+  }
 
-			void setSpatialCoherenceWeight(const double kSpatialCoherenceWeight_)
-			{
-				spatialCoherenceWeight = kSpatialCoherenceWeight_;
-			}
+  // The function for estimating the model parameters from the data points.
+  void run(const DataMatrix& kData_,              // The data points
+           const std::vector<size_t>& kInliers_,  // The inliers of the previously estimated model
+           const models::Model& kModel_,          // The previously estimated model
+           const scoring::Score& kScore_,         // The of the previously estimated model
+           const estimator::Estimator* kEstimator_,  // The estimator used for the model estimation
+           scoring::AbstractScoring* kScoring_,  // The scoring object used for the model estimation
+           models::Model& estimatedModel_,       // The estimated model
+           scoring::Score& estimatedScore_,      // The score of the estimated model
+           std::vector<size_t>& estimatedInliers_) const  // The inliers of the estimated model
+  {
+    if (neighborhoodGraph == nullptr)
+      throw std::runtime_error("The neighborhood graph is not set.");
 
-			// The function for estimating the model parameters from the data points.
-			void run(const DataMatrix &kData_, // The data points
-				const std::vector<size_t> &kInliers_, // The inliers of the previously estimated model
-				const models::Model &kModel_, // The previously estimated model 
-				const scoring::Score &kScore_, // The of the previously estimated model
-				const estimator::Estimator *kEstimator_, // The estimator used for the model estimation
-				scoring::AbstractScoring *kScoring_, // The scoring object used for the model estimation
-				models::Model &estimatedModel_, // The estimated model
-				scoring::Score &estimatedScore_, // The score of the estimated model
-				std::vector<size_t> &estimatedInliers_) const // The inliers of the estimated model
-			{
-				if (neighborhoodGraph == nullptr)
-					throw std::runtime_error("The neighborhood graph is not set.");
+    // The invalid score
+    static const scoring::Score kInvalidScore = scoring::Score();
 
-				// The invalid score
-				static const scoring::Score kInvalidScore = scoring::Score();
+    // The sampler used for selecting minimal samples
+    samplers::UniformRandomSampler sampler;
 
-				// The sampler used for selecting minimal samples
-				samplers::UniformRandomSampler sampler;
+    // Initialize the estimated model and score
+    estimatedModel_ = kModel_;
 
-				// Initialize the estimated model and score
-				estimatedModel_ = kModel_;
+    // The size of the non-minimal samples
+    const size_t kNonMinimalSampleSize = sampleSizeMultiplier * kEstimator_->sampleSize();
+    size_t currentSampleSize;
 
-				// The size of the non-minimal samples
-				const size_t kNonMinimalSampleSize = sampleSizeMultiplier * kEstimator_->sampleSize();
-				size_t currentSampleSize;
+    // The currently estimated models
+    std::vector<models::Model> currentlyEstimatedModels;
+    scoring::Score currentScore = kInvalidScore;
+    std::vector<size_t> currentInliers, tmpInliers;
+    currentInliers.reserve(kData_.rows());
+    tmpInliers.reserve(kData_.rows());
 
-				// The currently estimated models
-				std::vector<models::Model> currentlyEstimatedModels;
-				scoring::Score currentScore = kInvalidScore;
-				std::vector<size_t> currentInliers,
-					tmpInliers;
-				currentInliers.reserve(kData_.rows());
-				tmpInliers.reserve(kData_.rows());
+    // Allocate memory for the current sample
+    size_t* currentSample = new size_t[kNonMinimalSampleSize];
 
-				// Allocate memory for the current sample
-				size_t *currentSample = new size_t[kNonMinimalSampleSize];
+    // A flag indicating whether the model has been updated in the LO step
+    bool updated;
 
-				// A flag indicating whether the model has been updated in the LO step
-				bool updated;
+    // Neighborhood properties
+    const size_t& kNeighborNumber = neighborhoodGraph->getNeighborNumber();
 
-				// Neighborhood properties
-				const size_t &kNeighborNumber = neighborhoodGraph->getNeighborNumber();
+    // The inlier-outlier threshold
+    const double& kThreshold = kScoring_->getThreshold();
 
-				// The inlier-outlier threshold
-				const double &kThreshold = kScoring_->getThreshold();
+    // The graph used by the graph-cut labeling. Allocated once and
+    // reset() in every labeling call, so the node/arc arrays are reused
+    // across the (up to) graphCutNumber labelings instead of being
+    // malloc'd/freed each time. reset() restores a freshly-constructed
+    // state, so the resulting labelings are identical.
+    Energy<double, double, double> problemGraph(
+        static_cast<int>(kData_.rows()),    // The number of vertices
+        static_cast<int>(kNeighborNumber),  // The number of edges
+        NULL);
 
-				// The graph used by the graph-cut labeling. Allocated once and
-				// reset() in every labeling call, so the node/arc arrays are reused
-				// across the (up to) graphCutNumber labelings instead of being
-				// malloc'd/freed each time. reset() restores a freshly-constructed
-				// state, so the resulting labelings are identical.
-				Energy<double, double, double> problemGraph(
-					static_cast<int>(kData_.rows()), // The number of vertices
-					static_cast<int>(kNeighborNumber), // The number of edges
-					NULL);
+    // The inner RANSAC loop
+    for (size_t iteration = 0; iteration < graphCutNumber; ++iteration) {
+      // In the beginning, the best model is not updated
+      updated = false;
 
-				// The inner RANSAC loop
-				for (size_t iteration = 0; iteration < graphCutNumber; ++iteration)
-				{
-					// In the beginning, the best model is not updated
-					updated = false;
+      // Apply the graph-cut-based inlier/outlier labeling.
+      // The inlier set will contain the points closer than the threshold and
+      // their neighbors depending on the weight of the spatial coherence term.
+      currentInliers.clear();
+      labeling(kData_,           // The input points
+               kNeighborNumber,  // The number of neighbors, i.e. the edge number of the graph
+               estimatedModel_,  // The best model parameters
+               kEstimator_,      // The model estimator
+               spatialCoherenceWeight,  // The weight of the spatial coherence term
+               kThreshold,              // The inlier-outlier threshold
+               &problemGraph,           // The reusable problem graph
+               currentInliers);         // The selected inliers
 
-					// Apply the graph-cut-based inlier/outlier labeling.
-					// The inlier set will contain the points closer than the threshold and
-					// their neighbors depending on the weight of the spatial coherence term.
-					currentInliers.clear();
-					labeling(
-						kData_, // The input points
-						kNeighborNumber, // The number of neighbors, i.e. the edge number of the graph
-						estimatedModel_, // The best model parameters
-						kEstimator_, // The model estimator
-						spatialCoherenceWeight, // The weight of the spatial coherence term
-						kThreshold, // The inlier-outlier threshold
-						&problemGraph, // The reusable problem graph
-						currentInliers); // The selected inliers
+      // Calculate the current sample size
+      currentSampleSize = currentInliers.size() - 1;
+      if (currentSampleSize >= kNonMinimalSampleSize) currentSampleSize = kNonMinimalSampleSize;
 
-					// Calculate the current sample size
-					currentSampleSize = currentInliers.size() - 1;
-					if (currentSampleSize >= kNonMinimalSampleSize)
-						currentSampleSize = kNonMinimalSampleSize;
+      // Break if the sample size is too small
+      if (currentSampleSize < kEstimator_->sampleSize()) break;
 
-					// Break if the sample size is too small
-					if (currentSampleSize < kEstimator_->sampleSize())
-						break;
-						
-					// Re-initialize the sampler with the current inliers
-					sampler.initialize(currentInliers.size() - 1);
+      // Re-initialize the sampler with the current inliers
+      sampler.initialize(currentInliers.size() - 1);
 
-					// Doing inner RANSACs using the current pool of potential inliers
-					for (size_t innerIterations = 0; innerIterations < maxIterations; ++innerIterations)
-					{
-						// Remove the previous models
-						currentlyEstimatedModels.clear();
-						// Add the previous model to the list of models so that if iterative optimization is applied, it can use it as a starting point
-						currentlyEstimatedModels.emplace_back(estimatedModel_);
+      // Doing inner RANSACs using the current pool of potential inliers
+      for (size_t innerIterations = 0; innerIterations < maxIterations; ++innerIterations) {
+        // Remove the previous models
+        currentlyEstimatedModels.clear();
+        // Add the previous model to the list of models so that if iterative optimization is applied, it can use it as a starting point
+        currentlyEstimatedModels.emplace_back(estimatedModel_);
 
-						// If there are enough inliers to estimate the model, use all of them
-						if (currentSampleSize == currentInliers.size())
-						{
-							// Estimate the model
-							if (!kEstimator_->estimateModelNonminimal(
-								kData_,  // The data points
-								&currentInliers[0], // Selected minimal sample
-								currentSampleSize, // The size of the minimal sample
-								&currentlyEstimatedModels, // The estimated models
-								nullptr)) // The indices of the inliers
-								continue;
-						} else
-						{
-							// Sample minimal set
-							if (!sampler.sample(currentInliers.size(), // Data matrix
-								currentSampleSize, // Selected minimal sample 
-								currentSample)) // Sample indices
-								continue;
+        // If there are enough inliers to estimate the model, use all of them
+        if (currentSampleSize == currentInliers.size()) {
+          // Estimate the model
+          if (!kEstimator_->estimateModelNonminimal(
+                  kData_,                     // The data points
+                  &currentInliers[0],         // Selected minimal sample
+                  currentSampleSize,          // The size of the minimal sample
+                  &currentlyEstimatedModels,  // The estimated models
+                  nullptr))                   // The indices of the inliers
+            continue;
+        } else {
+          // Sample minimal set
+          if (!sampler.sample(currentInliers.size(),  // Data matrix
+                              currentSampleSize,      // Selected minimal sample
+                              currentSample))         // Sample indices
+            continue;
 
-							// Estimate the model
-							if (currentSampleSize > kEstimator_->sampleSize())
-								if (!kEstimator_->estimateModelNonminimal(
-									kData_,  // The data points
-									currentSample, // Selected minimal sample
-									currentSampleSize, // The size of the minimal sample
-									&currentlyEstimatedModels, // The estimated models
-									nullptr)) // The indices of the inliers
-									continue;
-							else
-								if (!kEstimator_->estimateModel(
-									kData_,  // The data points
-									currentSample, // Selected minimal sample
-									&currentlyEstimatedModels)) // The estimated models
-									continue;
-						}
+          // Estimate the model
+          if (currentSampleSize > kEstimator_->sampleSize())
+            if (!kEstimator_->estimateModelNonminimal(
+                    kData_,                     // The data points
+                    currentSample,              // Selected minimal sample
+                    currentSampleSize,          // The size of the minimal sample
+                    &currentlyEstimatedModels,  // The estimated models
+                    nullptr))                   // The indices of the inliers
+              continue;
+            else if (!kEstimator_->estimateModel(
+                         kData_,                      // The data points
+                         currentSample,               // Selected minimal sample
+                         &currentlyEstimatedModels))  // The estimated models
+              continue;
+        }
 
-						// Calculate the scoring of the estimated model
-						for (const auto &model : currentlyEstimatedModels)
-						{
-							// Calculate the score of the estimated model
-							tmpInliers.clear();
-							currentScore = kScoring_->score(kData_, model, kEstimator_, tmpInliers);
+        // Calculate the scoring of the estimated model
+        for (const auto& model : currentlyEstimatedModels) {
+          // Calculate the score of the estimated model
+          tmpInliers.clear();
+          currentScore = kScoring_->score(kData_, model, kEstimator_, tmpInliers);
 
-							// Check if the current model is better than the previous one
-							if (currentScore > estimatedScore_)
-							{
-								// Update the estimated model
-								estimatedModel_ = model;
-								estimatedScore_ = currentScore;
-								estimatedInliers_.swap(tmpInliers);
-								updated = true;
-							}
-						}
+          // Check if the current model is better than the previous one
+          if (currentScore > estimatedScore_) {
+            // Update the estimated model
+            estimatedModel_ = model;
+            estimatedScore_ = currentScore;
+            estimatedInliers_.swap(tmpInliers);
+            updated = true;
+          }
+        }
 
-						if (updated) 
-							kScoring_->updateSPRTParameters(estimatedScore_, -1, kData_.rows());
-						else
-							kScoring_->updateSPRTParameters(scoring::Score(), -1, kData_.rows());
-					}
+        if (updated)
+          kScoring_->updateSPRTParameters(estimatedScore_, -1, kData_.rows());
+        else
+          kScoring_->updateSPRTParameters(scoring::Score(), -1, kData_.rows());
+      }
 
-					// If the model is not updated, interrupt the procedure
-					if (!updated)
-						break;
-				}
+      // If the model is not updated, interrupt the procedure
+      if (!updated) break;
+    }
 
-				// Clean up
-				delete[] currentSample;
-			}
+    // Clean up
+    delete[] currentSample;
+  }
 
-			// Returns a labeling w.r.t. the current model and point set
-			void labeling(
-				const DataMatrix &kData_, // The input data points
-				size_t kNeighborNumber_, // The neighbor number in the graph
-				const models::Model &kModel_, // The current model
-				const estimator::Estimator *kEstimator_, // The estimator used for the model estimation
-				const double kLambda_, // The weight for the spatial coherence term
-				const double kThreshold_, // The kThreshold_ for the inlier-outlier decision
-				Energy<double, double, double> *problemGraph, // The (reused) problem graph
-				std::vector<size_t> &inliers_) const // The resulting inlier set
-			{
-				// The number of points in the data set
-				const int &pointNumber = kData_.rows();
+  // Returns a labeling w.r.t. the current model and point set
+  void labeling(
+      const DataMatrix& kData_,                 // The input data points
+      size_t kNeighborNumber_,                  // The neighbor number in the graph
+      const models::Model& kModel_,             // The current model
+      const estimator::Estimator* kEstimator_,  // The estimator used for the model estimation
+      const double kLambda_,                    // The weight for the spatial coherence term
+      const double kThreshold_,                 // The kThreshold_ for the inlier-outlier decision
+      Energy<double, double, double>* problemGraph,  // The (reused) problem graph
+      std::vector<size_t>& inliers_) const           // The resulting inlier set
+  {
+    // The number of points in the data set
+    const int& pointNumber = kData_.rows();
 
-				// Restore the freshly-constructed graph state (reuses the node/arc arrays)
-				problemGraph->reset();
+    // Restore the freshly-constructed graph state (reuses the node/arc arrays)
+    problemGraph->reset();
 
-				// Add a vertex for each point
-				for (auto i = 0; i < pointNumber; ++i)
-					problemGraph->add_node();
+    // Add a vertex for each point
+    for (auto i = 0; i < pointNumber; ++i) problemGraph->add_node();
 
-				// The distance and energy for each point
-				std::vector<double> distancePerThreshold(pointNumber);
-				double tmpSquaredDistance,
-					tmpEnergy;
-				const double squaredTruncatedThreshold = kThreshold_ * kThreshold_;
-				const double oneMinusLambda = 1.0 - kLambda_;
-				const double invSquaredTruncatedThreshold = 1.0 / squaredTruncatedThreshold;
+    // The distance and energy for each point
+    std::vector<double> distancePerThreshold(pointNumber);
+    double tmpSquaredDistance, tmpEnergy;
+    const double squaredTruncatedThreshold = kThreshold_ * kThreshold_;
+    const double oneMinusLambda = 1.0 - kLambda_;
+    const double invSquaredTruncatedThreshold = 1.0 / squaredTruncatedThreshold;
 
-				// Compute all point-to-model squared residuals with one batched call
-				kEstimator_->squaredResiduals(kData_, kModel_, 0, pointNumber, distancePerThreshold.data());
+    // Compute all point-to-model squared residuals with one batched call
+    kEstimator_->squaredResiduals(kData_, kModel_, 0, pointNumber, distancePerThreshold.data());
 
-				// Estimate the vertex capacities
-				for (size_t i = 0; i < pointNumber; ++i)
-				{
-					tmpSquaredDistance = distancePerThreshold[i];
-					double distRatio = tmpSquaredDistance * invSquaredTruncatedThreshold;
-					distRatio = std::min(std::max(distRatio, 0.0), 1.0);
-					distancePerThreshold[i] = distRatio;
-					// Calculating the implied unary energy
-					tmpEnergy = 1.0 - distRatio;
+    // Estimate the vertex capacities
+    for (size_t i = 0; i < pointNumber; ++i) {
+      tmpSquaredDistance = distancePerThreshold[i];
+      double distRatio = tmpSquaredDistance * invSquaredTruncatedThreshold;
+      distRatio = std::min(std::max(distRatio, 0.0), 1.0);
+      distancePerThreshold[i] = distRatio;
+      // Calculating the implied unary energy
+      tmpEnergy = 1.0 - distRatio;
 
-					// Adding the unary energy to the graph
-					if (tmpSquaredDistance <= squaredTruncatedThreshold)
-						problemGraph->add_term1(i, oneMinusLambda * tmpEnergy, 0);
-					else
-						problemGraph->add_term1(i, 0, oneMinusLambda * (1 - tmpEnergy));
-				}
+      // Adding the unary energy to the graph
+      if (tmpSquaredDistance <= squaredTruncatedThreshold)
+        problemGraph->add_term1(i, oneMinusLambda * tmpEnergy, 0);
+      else
+        problemGraph->add_term1(i, 0, oneMinusLambda * (1 - tmpEnergy));
+    }
 
-				// Deduplicate undirected edges with an O(E) hash set instead of an
-				// O(N^2) dense matrix (the previous std::vector<std::vector<int>> of
-				// size pointNumber x pointNumber allocated/zeroed hundreds of MB on every
-				// labeling() call). The dedup decision and edge-insertion order are
-				// preserved exactly, so the resulting graph (and labeling) is identical.
-				if (kLambda_ > 0)
-				{
-					double energy1, energy2, energySum;
-					double e00, e11 = 0; // Unused: e01 = 1.0, e10 = 1.0,
+    // Deduplicate undirected edges with an O(E) hash set instead of an
+    // O(N^2) dense matrix (the previous std::vector<std::vector<int>> of
+    // size pointNumber x pointNumber allocated/zeroed hundreds of MB on every
+    // labeling() call). The dedup decision and edge-insertion order are
+    // preserved exactly, so the resulting graph (and labeling) is identical.
+    if (kLambda_ > 0) {
+      double energy1, energy2, energySum;
+      double e00, e11 = 0;  // Unused: e01 = 1.0, e10 = 1.0,
 
-					// Iterate through all points and set their edges
-					for (auto pointIdx = 0; pointIdx < pointNumber; ++pointIdx)
-					{
-						energy1 = distancePerThreshold[pointIdx]; // Truncated quadratic cost
+      // Iterate through all points and set their edges
+      for (auto pointIdx = 0; pointIdx < pointNumber; ++pointIdx) {
+        energy1 = distancePerThreshold[pointIdx];  // Truncated quadratic cost
 
-						// Iterate through  all neighbors
-						const auto &neighbors = neighborhoodGraph->getNeighbors(pointIdx);
-						for (const size_t &actualNeighborIdx : neighbors)
-						{
-							// Add every undirected edge exactly once by only processing it
-							// at its lower-indexed endpoint. The grid neighborhood is
-							// symmetric (getNeighbors returns the full cell, including the
-							// point itself), so this skips self-loops and the mirror
-							// direction and yields an identical edge set & insertion order
-							// to the previous O(N^2) dense-matrix dedup -- with no extra
-							// storage. (Assumes a symmetric neighborhood graph, which Grid is.)
-							if (actualNeighborIdx <= static_cast<size_t>(pointIdx))
-								continue;
+        // Iterate through  all neighbors
+        const auto& neighbors = neighborhoodGraph->getNeighbors(pointIdx);
+        for (const size_t& actualNeighborIdx : neighbors) {
+          // Add every undirected edge exactly once by only processing it
+          // at its lower-indexed endpoint. The grid neighborhood is
+          // symmetric (getNeighbors returns the full cell, including the
+          // point itself), so this skips self-loops and the mirror
+          // direction and yields an identical edge set & insertion order
+          // to the previous O(N^2) dense-matrix dedup -- with no extra
+          // storage. (Assumes a symmetric neighborhood graph, which Grid is.)
+          if (actualNeighborIdx <= static_cast<size_t>(pointIdx)) continue;
 
-							energy2 = distancePerThreshold[actualNeighborIdx]; // Truncated quadratic cost
-							energySum = energy1 + energy2;
+          energy2 = distancePerThreshold[actualNeighborIdx];  // Truncated quadratic cost
+          energySum = energy1 + energy2;
 
-							e00 = 0.5 * energySum;
+          e00 = 0.5 * energySum;
 
-							constexpr double e01_plus_e10 = 2.0; // e01 + e10 = 2
-							if (e00 + e11 > e01_plus_e10)
-								throw std::runtime_error("Non-submodular expansion term detected; smooth costs must be a metric for expansion.\n");
+          constexpr double e01_plus_e10 = 2.0;  // e01 + e10 = 2
+          if (e00 + e11 > e01_plus_e10)
+            throw std::runtime_error(
+                "Non-submodular expansion term detected; smooth costs must be a metric for "
+                "expansion.\n");
 
-							problemGraph->add_term2(pointIdx, // The current point's index
-								actualNeighborIdx, // The current neighbor's index
-								e00 * kLambda_,
-								kLambda_, // = e01 * lambda
-								kLambda_, // = e10 * lambda
-								e11 * kLambda_);
-						}
-					}
-				}
+          problemGraph->add_term2(pointIdx,           // The current point's index
+                                  actualNeighborIdx,  // The current neighbor's index
+                                  e00 * kLambda_,
+                                  kLambda_,  // = e01 * lambda
+                                  kLambda_,  // = e10 * lambda
+                                  e11 * kLambda_);
+        }
+      }
+    }
 
-				// Run the standard st-graph-cut algorithm
-				problemGraph->minimize();
+    // Run the standard st-graph-cut algorithm
+    problemGraph->minimize();
 
-				// Select the inliers, i.e., the points labeled as SINK.
-				inliers_.reserve(pointNumber);
-				for (auto pointIdx = 0; pointIdx < pointNumber; ++pointIdx)
-					if (problemGraph->what_segment(pointIdx) == Graph<double, double, double>::SINK)
-						inliers_.emplace_back(pointIdx);
-			}
-		};
-	}
-}  // namespace gcransac
+    // Select the inliers, i.e., the points labeled as SINK.
+    inliers_.reserve(pointNumber);
+    for (auto pointIdx = 0; pointIdx < pointNumber; ++pointIdx)
+      if (problemGraph->what_segment(pointIdx) == Graph<double, double, double>::SINK)
+        inliers_.emplace_back(pointIdx);
+  }
+};
+}  // namespace local_optimization
+}  // namespace superansac

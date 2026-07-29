@@ -43,32 +43,24 @@
 
 #include <iostream>
 
-namespace superansac
-{
-	namespace local_optimization
-	{
-		// Templated class for estimating a model for RANSAC. This class is purely a
-		// virtual class and should be implemented for the specific task that RANSAC is
-		// being used for. Two methods must be implemented: estimateModel and residual. All
-		// other methods are optional, but will likely enhance the quality of the RANSAC
-		// output.
-		class LocalOptimizer
-		{
-		public:
-			LocalOptimizer() {}
-			virtual ~LocalOptimizer() {}
+namespace superansac {
+namespace local_optimization {
+// Templated class for estimating a model for RANSAC. This class is purely a
+// virtual class and should be implemented for the specific task that RANSAC is
+// being used for. Two methods must be implemented: estimateModel and residual. All
+// other methods are optional, but will likely enhance the quality of the RANSAC
+// output.
+class LocalOptimizer {
+ public:
+  LocalOptimizer() {}
+  virtual ~LocalOptimizer() {}
 
-			// The function for estimating the model parameters from the data points.
-			virtual void run(const DataMatrix &kData_,
-				const std::vector<size_t> &kInliers_,
-				const models::Model &kModel_,
-				const scoring::Score &kScore_,
-				const estimator::Estimator *kEstimator_,
-				scoring::AbstractScoring *kScoring_,
-				models::Model &estimatedModel_,
-				scoring::Score &estimatedScore_,
-				std::vector<size_t> &estimatedInliers_) const = 0;
-
-		};
-	}
-}  // namespace gcransac
+  // The function for estimating the model parameters from the data points.
+  virtual void run(const DataMatrix& kData_, const std::vector<size_t>& kInliers_,
+                   const models::Model& kModel_, const scoring::Score& kScore_,
+                   const estimator::Estimator* kEstimator_, scoring::AbstractScoring* kScoring_,
+                   models::Model& estimatedModel_, scoring::Score& estimatedScore_,
+                   std::vector<size_t>& estimatedInliers_) const = 0;
+};
+}  // namespace local_optimization
+}  // namespace superansac

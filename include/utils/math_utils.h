@@ -35,19 +35,17 @@
 
 #include <Eigen/Eigen>
 
-namespace superansac
+namespace superansac {
+namespace utils {
+// Pivoting In-Place Gauss Elimination to solve problem A * x = b,
+// where A is the known coefficient matrix, b is the inhomogeneous part and x is the unknown vector.
+// Form: matrix_ = [A, b].
+template <size_t _Size>
+void gaussElimination(Eigen::Matrix<double, _Size, _Size + 1>&
+                          matrix_,  // The matrix to which the elimination is applied
+                      Eigen::Matrix<double, _Size, 1>& result_)  // The resulting null-space
 {
-	namespace utils
-	{
-		// Pivoting In-Place Gauss Elimination to solve problem A * x = b,
-		// where A is the known coefficient matrix, b is the inhomogeneous part and x is the unknown vector.
-		// Form: matrix_ = [A, b].
-		template<size_t _Size>
-		void gaussElimination(
-			Eigen::Matrix<double, _Size, _Size + 1>& matrix_, // The matrix to which the elimination is applied
-			Eigen::Matrix<double, _Size, 1>& result_) // The resulting null-space
-		{
-			/*int i, j, k;
+  /*int i, j, k;
 			double temp;
 
 			//Pivotisation
@@ -85,43 +83,36 @@ namespace superansac
 				result_(i) = result_(i) / matrix_(i, i);            
 			}*/
 
-			// Pivotisation
-			for (size_t i = 0; i < _Size; ++i)
-			{
-				// Find the row with the largest pivot element
-				size_t maxRow = i;
-				for (size_t k = i + 1; k < _Size; ++k)
-				{
-					if (std::abs(matrix_(k, i)) > std::abs(matrix_(maxRow, i)))
-					{
-						maxRow = k;
-					}
-				}
-
-				// Swap the current row with the row with the largest pivot
-				if (maxRow != i)
-				{
-					matrix_.row(i).swap(matrix_.row(maxRow));
-				}
-
-				// Elimination process
-				for (size_t k = i + 1; k < _Size; ++k)
-				{
-					double factor = matrix_(k, i) / matrix_(i, i);
-					matrix_.row(k).segment(i, _Size + 1 - i) -= factor * matrix_.row(i).segment(i, _Size + 1 - i);
-				}
-			}
-
-			// Back-substitution
-			for (int i = _Size - 1; i >= 0; --i)
-			{
-				result_(i) = matrix_(i, _Size);
-				for (int j = i + 1; j < _Size; ++j)
-				{
-					result_(i) -= matrix_(i, j) * result_(j);
-				}
-				result_(i) /= matrix_(i, i);
-			}
-		}
+  // Pivotisation
+  for (size_t i = 0; i < _Size; ++i) {
+    // Find the row with the largest pivot element
+    size_t maxRow = i;
+    for (size_t k = i + 1; k < _Size; ++k) {
+      if (std::abs(matrix_(k, i)) > std::abs(matrix_(maxRow, i))) {
+        maxRow = k;
+      }
     }
+
+    // Swap the current row with the row with the largest pivot
+    if (maxRow != i) {
+      matrix_.row(i).swap(matrix_.row(maxRow));
+    }
+
+    // Elimination process
+    for (size_t k = i + 1; k < _Size; ++k) {
+      double factor = matrix_(k, i) / matrix_(i, i);
+      matrix_.row(k).segment(i, _Size + 1 - i) -= factor * matrix_.row(i).segment(i, _Size + 1 - i);
+    }
+  }
+
+  // Back-substitution
+  for (int i = _Size - 1; i >= 0; --i) {
+    result_(i) = matrix_(i, _Size);
+    for (int j = i + 1; j < _Size; ++j) {
+      result_(i) -= matrix_(i, j) * result_(j);
+    }
+    result_(i) /= matrix_(i, i);
+  }
 }
+}  // namespace utils
+}  // namespace superansac
