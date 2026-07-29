@@ -40,8 +40,7 @@
 #include <vector>
 #include <Eigen/Core>
 
-namespace superansac {
-namespace scoring {
+namespace superansac::scoring {
 
 class AbstractScoring {
  public:
@@ -59,15 +58,6 @@ class AbstractScoring {
 
   FORCE_INLINE virtual void updateSPRTParameters(const Score& currentBest, int iterationIndex,
                                                  size_t totalPoints) = 0;
-
-  // Set the image size
-  FORCE_INLINE void setImageSize(const double kWidthSrc_, const double kHeightSrc_,
-                                 const double kWidthDst_, const double kHeightDst_) {
-    imageHeightSrc = kHeightSrc_;
-    imageWidthSrc = kWidthSrc_;
-    imageHeightDst = kHeightDst_;
-    imageWidthDst = kWidthDst_;
-  }
 
   // Sample function
   FORCE_INLINE virtual Score score(
@@ -119,8 +109,9 @@ class AbstractScoring {
   }
 
  protected:
-  double threshold, squaredThreshold, imageWidthSrc, imageHeightSrc, imageWidthDst, imageHeightDst;
+  // 阈值
+  double threshold;
+  double squaredThreshold;
 };
 
-}  // namespace scoring
-}  // namespace superansac
+}  // namespace superansac::scoring

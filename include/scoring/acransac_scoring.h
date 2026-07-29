@@ -48,14 +48,37 @@ class ACRANSACScoring : public AbstractScoring {
  protected:
   const size_t kStepNumber;
 
+  // Image dimensions. ACRANSAC is the only scoring that needs them: the
+  // a-contrario significance test normalizes by the image area via
+  // Estimator::logAlpha0(). Only the destination size is currently read; the
+  // source size is kept so setImageSize() takes a complete image pair.
+  double imageWidthSrc;
+  double imageHeightSrc;
+  double imageWidthDst;
+  double imageHeightDst;
+
  public:
   // Constructor
   ACRANSACScoring() : ACRANSACScoring(10) {}
 
-  ACRANSACScoring(const size_t kStepNumber_) : kStepNumber(kStepNumber_) {}
+  ACRANSACScoring(const size_t kStepNumber_)
+      : kStepNumber(kStepNumber_),
+        imageWidthSrc(0.0),
+        imageHeightSrc(0.0),
+        imageWidthDst(0.0),
+        imageHeightDst(0.0) {}
 
   // Destructor
   ~ACRANSACScoring() {}
+
+  // Set the image size
+  FORCE_INLINE void setImageSize(const double kWidthSrc_, const double kHeightSrc_,
+                                 const double kWidthDst_, const double kHeightDst_) {
+    imageWidthSrc = kWidthSrc_;
+    imageHeightSrc = kHeightSrc_;
+    imageWidthDst = kWidthDst_;
+    imageHeightDst = kHeightDst_;
+  }
 
   FORCE_INLINE void updateSPRTParameters(const Score& currentBest, int iterationIndex,
                                          size_t totalPoints) {}

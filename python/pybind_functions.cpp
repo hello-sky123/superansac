@@ -716,7 +716,8 @@ std::tuple<Eigen::Matrix3d, std::vector<size_t>, double, size_t> estimateFundame
 
   // Set the image sizes if the scoring is ACRANSAC
   if (kScoring == superansac::scoring::ScoringType::ACRANSAC)
-    scorer->setImageSize(kImageSizes_[0], kImageSizes_[1], kImageSizes_[2], kImageSizes_[3]);
+    dynamic_cast<superansac::scoring::ACRANSACScoring*>(scorer.get())
+        ->setImageSize(kImageSizes_[0], kImageSizes_[1], kImageSizes_[2], kImageSizes_[3]);
   else if (kScoring == superansac::scoring::ScoringType::
                            GRID)  // Set the neighborhood structure if the scoring is GRID
   {
@@ -997,7 +998,8 @@ std::tuple<Eigen::Matrix3d, std::vector<size_t>, double, size_t> estimateEssenti
 
   // Set the image sizes if the scoring is ACRANSAC
   if (kScoring == superansac::scoring::ScoringType::ACRANSAC)
-    scorer->setImageSize(kImageSizes_[0], kImageSizes_[1], kImageSizes_[2], kImageSizes_[3]);
+    dynamic_cast<superansac::scoring::ACRANSACScoring*>(scorer.get())
+        ->setImageSize(kImageSizes_[0], kImageSizes_[1], kImageSizes_[2], kImageSizes_[3]);
   else if (kScoring == superansac::scoring::ScoringType::
                            GRID)  // Set the neighborhood structure if the scoring is GRID
   {
@@ -1194,7 +1196,8 @@ std::tuple<Eigen::Matrix3d, std::vector<size_t>, double, size_t> estimateHomogra
 
   // Set the image sizes if the scoring is ACRANSAC
   if (kScoring == superansac::scoring::ScoringType::ACRANSAC)
-    scorer->setImageSize(kImageSizes_[0], kImageSizes_[1], kImageSizes_[2], kImageSizes_[3]);
+    dynamic_cast<superansac::scoring::ACRANSACScoring*>(scorer.get())
+        ->setImageSize(kImageSizes_[0], kImageSizes_[1], kImageSizes_[2], kImageSizes_[3]);
   else if (kScoring == superansac::scoring::ScoringType::
                            GRID)  // Set the neighborhood structure if the scoring is GRID
   {
