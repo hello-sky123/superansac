@@ -1,0 +1,14 @@
+---
+BasedOnStyle: Google
+Language: Cpp
+Standard: c++17
+# Google's limit is 80; this codebase has long Eigen types and descriptive
+# parameter names, so 100 keeps signatures on one line without sprawling.
+ColumnLimit: 100
+# Keep the trailing "// Data matrix"-style argument comments aligned.
+ReflowComments: false
+# Google style sorts includes, but several headers here rely on include order
+# (e.g. cross_validation_optimizer.h uses std::random_device without including
+# <random>, and abstract_local_optimizer.h needs scoring/score.h first).
+# Sorting breaks the build, so leave include order alone.
+SortIncludes: Never

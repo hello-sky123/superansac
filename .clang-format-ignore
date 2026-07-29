@@ -1,0 +1,29 @@
+# Vendored third-party sources. Excluded from formatting so they stay diffable
+# against upstream and remain easy to re-sync or patch.
+
+# nanoflann (BSD) -- Marius Muja, David G. Lowe, Jose Luis Blanco
+include/neighborhood/nanoflann.hpp
+
+# PoseLib / COLMAP numerical optimizers -- Viktor Larsson
+include/estimators/numerical_optimizer/*
+include/utils/sturm.h
+
+# Graph-cut / max-flow -- Boykov, Kolmogorov, Veksler
+include/local_optimization/GCoptimization.cpp
+include/local_optimization/GCoptimization.h
+include/local_optimization/LinkedBlockList.cpp
+include/local_optimization/LinkedBlockList.h
+include/local_optimization/block.h
+include/local_optimization/energy.h
+include/local_optimization/graph.cpp
+include/local_optimization/graph.h
+include/local_optimization/maxflow.cpp
+
+# Generated data table: a handful of ~130k-character lines of numeric literals.
+# clang-format expands it from 43 lines to ~57k, which is unreadable and slow.
+include/scoring/magsac_look_up_table.h
+
+# Stale duplicates (filenames contain spaces; not part of the build)
+include/neighborhood/grid_neighborhood_graph copy.h
+include/samplers/progressive_napsac_sampler copy.h
+include/samplers/prosac_sampler copy.h
