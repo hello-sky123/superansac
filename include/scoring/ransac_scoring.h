@@ -33,13 +33,14 @@
 // Author: Daniel Barath (majti89@gmail.com)
 #pragma once
 
-#include "../utils/macros.h"
-#include "../models/model.h"
-#include "../utils/types.h"
+#include <Eigen/Core>
+
 #include "../estimators/abstract_estimator.h"
+#include "../models/model.h"
+#include "../utils/macros.h"
+#include "../utils/types.h"
 #include "abstract_scoring.h"
 #include "score.h"
-#include <Eigen/Core>
 
 namespace superansac {
 namespace scoring {

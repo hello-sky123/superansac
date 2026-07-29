@@ -34,13 +34,14 @@
 #pragma once
 
 #include <Eigen/Dense>
+
 #include <unsupported/Eigen/Polynomials>
 
-#include "abstract_solver.h"
-#include "../utils/math_utils.h"
 #include "../models/model.h"
-#include "../utils/types.h"
+#include "../utils/math_utils.h"
 #include "../utils/sturm.h"
+#include "../utils/types.h"
+#include "abstract_solver.h"
 #include "numerical_optimizer/essential.h"
 
 namespace superansac {

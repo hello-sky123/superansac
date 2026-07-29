@@ -1,23 +1,23 @@
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
-#include <pybind11/numpy.h>
-#include <pybind11/eigen.h>
 #include <Eigen/Dense>
 
-#include "superansac.h"
-#include "camera/types.h"
-#include "samplers/types.h"
-#include "scoring/types.h"
-#include "termination/types.h"
-#include "local_optimization/types.h"
-#include "inlier_selectors/types.h"
-#include "utils/types.h"
-#include "settings.h"
-
 #include <array>
+#include <pybind11/eigen.h>
+#include <pybind11/numpy.h>
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include <stdexcept>
 #include <tuple>
 #include <vector>
+
+#include "camera/types.h"
+#include "inlier_selectors/types.h"
+#include "local_optimization/types.h"
+#include "samplers/types.h"
+#include "scoring/types.h"
+#include "settings.h"
+#include "superansac.h"
+#include "termination/types.h"
+#include "utils/types.h"
 
 namespace py = pybind11;
 

@@ -33,10 +33,11 @@
 // Author: Daniel Barath (majti89@gmail.com)
 #pragma once
 
-#include "../utils/macros.h"
-#include "../scoring/score.h"
-#include "../utils/types.h"
 #include <Eigen/Core>
+
+#include "../scoring/score.h"
+#include "../utils/macros.h"
+#include "../utils/types.h"
 
 namespace superansac {
 namespace termination {

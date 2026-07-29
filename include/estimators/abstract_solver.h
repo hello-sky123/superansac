@@ -33,8 +33,9 @@
 // Author: Daniel Barath (barath.daniel@sztaki.mta.hu)
 #pragma once
 
-#include <vector>
 #include <Eigen/Eigen>
+
+#include <vector>
 
 #include "../models/model.h"
 #include "../utils/macros.h"

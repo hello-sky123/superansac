@@ -33,16 +33,17 @@
 // Author: Daniel Barath (majti89@gmail.com)
 #pragma once
 
-#include <vector>
 #include <Eigen/Eigen>
 
-#include "../utils/types.h"
-#include "../utils/uniform_random_generator.h"
+#include <vector>
+
 #include "../models/model.h"
 #include "../scoring/abstract_scoring.h"
+#include "../utils/types.h"
+#include "../utils/uniform_random_generator.h"
 #include "abstract_estimator.h"
-#include "solver_homography_four_point.h"
 #include "solver_fundamental_matrix_plane_and_parallax.h"
+#include "solver_homography_four_point.h"
 
 namespace superansac {
 namespace degensac {

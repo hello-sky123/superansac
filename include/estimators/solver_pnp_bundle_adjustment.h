@@ -33,16 +33,16 @@
 // Author: Daniel Barath (barath.daniel@sztaki.mta.hu)
 #pragma once
 
-#include "abstract_solver.h"
-#include "../utils/math_utils.h"
-#include "../models/model.h"
-#include "../utils/types.h"
-#include "../camera/types.h"
-#include "solver_epnp.h"
-
-#include "numerical_optimizer/bundle.h"
 #include "numerical_optimizer/camera_pose.h"
+
+#include "../camera/types.h"
+#include "../models/model.h"
+#include "../utils/math_utils.h"
+#include "../utils/types.h"
+#include "abstract_solver.h"
+#include "numerical_optimizer/bundle.h"
 #include "numerical_optimizer/essential.h"
+#include "solver_epnp.h"
 
 namespace superansac {
 namespace estimator {

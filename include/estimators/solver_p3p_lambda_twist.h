@@ -33,10 +33,10 @@
 // Author: Daniel Barath (barath.daniel@sztaki.mta.hu)
 #pragma once
 
-#include "abstract_solver.h"
-#include "../utils/math_utils.h"
 #include "../models/model.h"
+#include "../utils/math_utils.h"
 #include "../utils/types.h"
+#include "abstract_solver.h"
 
 namespace superansac {
 namespace estimator {

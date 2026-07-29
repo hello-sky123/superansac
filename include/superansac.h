@@ -34,11 +34,11 @@
 #pragma once
 
 #include "estimators/abstract_estimator.h"
+#include "local_optimization/abstract_local_optimizer.h"
 #include "samplers/abstract_sampler.h"
 #include "scoring/abstract_scoring.h"
-#include "local_optimization/abstract_local_optimizer.h"
-#include "termination/abstract_criterion.h"
 #include "settings.h"
+#include "termination/abstract_criterion.h"
 #include "utils/types.h"
 
 namespace superansac {

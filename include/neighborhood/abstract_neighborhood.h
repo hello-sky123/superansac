@@ -33,9 +33,11 @@
 // Author: Daniel Barath (barath.daniel@sztaki.mta.hu)
 #pragma once
 
-#include <vector>
 #include <Eigen/Eigen>
+
 #include <unordered_map>
+#include <vector>
+
 #include "../utils/types.h"
 
 namespace superansac {

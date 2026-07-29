@@ -33,15 +33,17 @@
 // Author: Daniel Barath (majti89@gmail.com)
 #pragma once
 
-#include "../utils/macros.h"
-#include "../models/model.h"
-#include "../utils/types.h"
-#include "../estimators/abstract_estimator.h"
-#include "score.h"
+#include <Eigen/Core>
+
 #include <cmath>
 #include <utility>
 #include <vector>
-#include <Eigen/Core>
+
+#include "../estimators/abstract_estimator.h"
+#include "../models/model.h"
+#include "../utils/macros.h"
+#include "../utils/types.h"
+#include "score.h"
 
 namespace superansac::scoring {
 

@@ -35,11 +35,10 @@
 
 #include <memory>
 
-#include "utils/macros.h"
-
 #include "abstract_neighborhood.h"
-#include "grid_neighborhood_graph.h"
 #include "flann_neighborhood_graph.h"
+#include "grid_neighborhood_graph.h"
+#include "utils/macros.h"
 
 namespace superansac {
 namespace neighborhood {

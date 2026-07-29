@@ -33,12 +33,14 @@
 // Author: Daniel Barath (barath.daniel@sztaki.mta.hu)
 #pragma once
 
-#include <vector>
 #include <Eigen/Eigen>
+
 #include <unordered_map>
-#include "../utils/types.h"
+#include <vector>
+
 #include "../models/model.h"
 #include "../scoring/abstract_scoring.h"
+#include "../utils/types.h"
 
 namespace superansac {
 namespace inlier_selector {

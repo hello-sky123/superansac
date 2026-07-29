@@ -33,9 +33,11 @@
 // Author: Daniel Barath (majti89@gmail.com)
 #pragma once
 
-#include "../utils/macros.h"
-#include <vector>
 #include <Eigen/Core>
+
+#include <vector>
+
+#include "../utils/macros.h"
 #include "../utils/types.h"
 
 namespace superansac {

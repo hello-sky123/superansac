@@ -35,10 +35,9 @@
 
 #include <memory>
 
-#include "utils/macros.h"
-
 #include "abstract_inlier_selector.h"
 #include "space_partitioning_ransac.h"
+#include "utils/macros.h"
 
 namespace superansac {
 namespace inlier_selector {

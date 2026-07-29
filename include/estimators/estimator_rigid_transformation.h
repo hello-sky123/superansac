@@ -35,19 +35,18 @@
 
 #define _USE_MATH_DEFINES
 
-#include <math.h>
+#include <Eigen/Eigen>
+
 #include <cmath>
+#include <math.h>
 #include <random>
 #include <vector>
 
-#include <Eigen/Eigen>
-
-#include "abstract_estimator.h"
 #include "../models/model.h"
 #include "../utils/types.h"
-
-#include "solver_fundamental_matrix_seven_point.h"
+#include "abstract_estimator.h"
 #include "solver_fundamental_matrix_eight_point.h"
+#include "solver_fundamental_matrix_seven_point.h"
 
 namespace superansac {
 namespace estimator {

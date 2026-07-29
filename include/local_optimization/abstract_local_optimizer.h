@@ -33,17 +33,18 @@
 // Author: Daniel Barath (barath.daniel@sztaki.mta.hu)
 #pragma once
 
-#include <vector>
 #include <Eigen/Core>
-#include <memory>
-#include "../utils/macros.h"
-#include "../models/model.h"
-#include "../scoring/score.h"
-#include "../scoring/abstract_scoring.h"
-#include "../estimators/abstract_estimator.h"
-#include "../utils/types.h"
 
 #include <iostream>
+#include <memory>
+#include <vector>
+
+#include "../estimators/abstract_estimator.h"
+#include "../models/model.h"
+#include "../scoring/abstract_scoring.h"
+#include "../scoring/score.h"
+#include "../utils/macros.h"
+#include "../utils/types.h"
 
 namespace superansac {
 namespace local_optimization {

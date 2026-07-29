@@ -33,19 +33,20 @@
 // Author: Daniel Barath (barath.daniel@sztaki.mta.hu)
 #pragma once
 
-#include <vector>
 #include <Eigen/Eigen>
-#include <unordered_map>
-#include "abstract_inlier_selector.h"
-#include "../neighborhood/abstract_neighborhood.h"
-#include "../utils/macros.h"
-#include "../models/model.h"
-#include "../scoring/score.h"
-#include "../utils/types.h"
 
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
+#include <unordered_map>
+#include <vector>
+
+#include "../models/model.h"
+#include "../neighborhood/abstract_neighborhood.h"
+#include "../scoring/score.h"
+#include "../utils/macros.h"
+#include "../utils/types.h"
+#include "abstract_inlier_selector.h"
 
 namespace superansac {
 namespace inlier_selector {

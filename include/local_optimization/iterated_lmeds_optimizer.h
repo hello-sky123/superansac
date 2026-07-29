@@ -33,13 +33,15 @@
 // Author: Daniel Barath (barath.daniel@sztaki.mta.hu)
 #pragma once
 
-#include <vector>
 #include <Eigen/Core>
-#include "opencv2/core.hpp"
-#include "opencv2/calib3d/calib3d.hpp"
-#include "abstract_local_optimizer.h"
-#include "../utils/types.h"
+
+#include <vector>
+
 #include "../models/model.h"
+#include "../utils/types.h"
+#include "abstract_local_optimizer.h"
+#include "opencv2/calib3d/calib3d.hpp"
+#include "opencv2/core.hpp"
 
 namespace superansac {
 namespace local_optimization {

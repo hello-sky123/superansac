@@ -33,12 +33,12 @@
 // Author: Daniel Barath (majti89@gmail.com)
 #pragma once
 
-#include "scoring/types.h"
-#include "samplers/types.h"
-#include "neighborhood/types.h"
-#include "local_optimization/types.h"
-#include "termination/types.h"
 #include "inlier_selectors/types.h"
+#include "local_optimization/types.h"
+#include "neighborhood/types.h"
+#include "samplers/types.h"
+#include "scoring/types.h"
+#include "termination/types.h"
 
 namespace superansac {
 struct ARSamplerSettings {

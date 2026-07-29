@@ -35,10 +35,10 @@
 
 #include <memory>
 
-#include "utils/macros.h"
 #include "abstract_camera.h"
 #include "simple_pinhole_camera.h"
 #include "simple_radial_camera.h"
+#include "utils/macros.h"
 
 namespace superansac {
 namespace camera {

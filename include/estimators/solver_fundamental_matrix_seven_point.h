@@ -35,10 +35,10 @@
 
 #include <unsupported/Eigen/Polynomials>
 
-#include "abstract_solver.h"
-#include "../utils/math_utils.h"
 #include "../models/model.h"
+#include "../utils/math_utils.h"
 #include "../utils/types.h"
+#include "abstract_solver.h"
 
 namespace superansac {
 namespace estimator {

@@ -35,18 +35,17 @@
 
 #include <memory>
 
-#include "utils/macros.h"
-
 #include "abstract_scoring.h"
-#include "ransac_scoring.h"
-#include "msac_scoring.h"
+#include "acransac_scoring.h"
+#include "gau_scoring.h"
+#include "grid_scoring.h"
 #include "magsac_scoring.h"
 #include "magsac_sprt_scoring.h"
 #include "minpran_scoring.h"
-#include "acransac_scoring.h"
-#include "grid_scoring.h"
-#include "gau_scoring.h"
 #include "ml_scoring.h"
+#include "msac_scoring.h"
+#include "ransac_scoring.h"
+#include "utils/macros.h"
 
 namespace superansac {
 namespace scoring {

@@ -33,13 +33,13 @@
 // Author: Daniel Barath (majti89@gmail.com)
 #pragma once
 
-#include "abstract_sampler.h"
-#include "../utils/uniform_random_generator.h"
+#include <queue>
+#include <vector>
+
 #include "../neighborhood/abstract_neighborhood.h"
 #include "../utils/types.h"
-
-#include <vector>
-#include <queue>
+#include "../utils/uniform_random_generator.h"
+#include "abstract_sampler.h"
 
 namespace superansac {
 namespace samplers {

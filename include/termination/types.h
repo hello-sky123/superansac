@@ -35,10 +35,9 @@
 
 #include <memory>
 
-#include "utils/macros.h"
-
 #include "abstract_criterion.h"
 #include "ransac_criterion.h"
+#include "utils/macros.h"
 
 namespace superansac {
 namespace termination {

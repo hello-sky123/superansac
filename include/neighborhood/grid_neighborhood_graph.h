@@ -33,11 +33,13 @@
 // Author: Daniel Barath (barath.daniel@sztaki.mta.hu)
 #pragma once
 
-#include "abstract_neighborhood.h"
-#include <vector>
-#include <unordered_map>
 #include <Eigen/Eigen>
+
+#include <unordered_map>
+#include <vector>
+
 #include "../utils/types.h"
+#include "abstract_neighborhood.h"
 
 namespace superansac {
 namespace neighborhood {

@@ -7,8 +7,17 @@ Standard: c++17
 ColumnLimit: 100
 # Keep the trailing "// Data matrix"-style argument comments aligned.
 ReflowComments: false
-# Google style sorts includes, but several headers here rely on include order
-# (e.g. cross_validation_optimizer.h uses std::random_device without including
-# <random>, and abstract_local_optimizer.h needs scoring/score.h first).
-# Sorting breaks the build, so leave include order alone.
-SortIncludes: Never
+SortIncludes: CaseSensitive
+# numerical_optimizer/alignment.h declares std::vector specializations for Eigen
+# types (PoseLib's EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION_CUSTOM). They must be
+# visible before anything instantiates std::vector<Eigen::Vector2d>, so the
+# headers that pull them in sort ahead of the rest.
+IncludeCategories:
+  - Regex: 'numerical_optimizer/(alignment|camera_pose|types)\.h'
+    Priority: 1
+  - Regex: '^<Eigen/'
+    Priority: 2
+  - Regex: '^<'
+    Priority: 3
+  - Regex: '.*'
+    Priority: 4

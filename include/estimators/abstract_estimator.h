@@ -33,15 +33,16 @@
 // Author: Daniel Barath (barath.daniel@sztaki.mta.hu)
 #pragma once
 
-#include <vector>
 #include <Eigen/Core>
-#include <memory>
-#include "abstract_solver.h"
-#include "../utils/macros.h"
-#include "../utils/types.h"
-#include "../models/model.h"
 
 #include <iostream>
+#include <memory>
+#include <vector>
+
+#include "../models/model.h"
+#include "../utils/macros.h"
+#include "../utils/types.h"
+#include "abstract_solver.h"
 
 namespace superansac {
 namespace estimator {

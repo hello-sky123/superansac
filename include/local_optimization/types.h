@@ -35,14 +35,13 @@
 
 #include <memory>
 
-#include "utils/macros.h"
-
-#include "least_squares_optimizer.h"
-#include "irls_optimizer.h"
-#include "nested_ransac_optimizer.h"
-#include "graph_cut_ransac_optimizer.h"
-#include "iterated_lmeds_optimizer.h"
 #include "cross_validation_optimizer.h"
+#include "graph_cut_ransac_optimizer.h"
+#include "irls_optimizer.h"
+#include "iterated_lmeds_optimizer.h"
+#include "least_squares_optimizer.h"
+#include "nested_ransac_optimizer.h"
+#include "utils/macros.h"
 
 namespace superansac {
 namespace local_optimization {

@@ -34,8 +34,10 @@
 #pragma once
 
 #include <Eigen/Core>
+
 #include <algorithm>
 #include <cmath>
+
 #include "types.h"
 
 void normalizePointsByIntrinsics(const DataMatrix& kCorrespondences_,

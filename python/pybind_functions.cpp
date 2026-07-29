@@ -1,38 +1,31 @@
-#include <Eigen/Dense>
-
-#include "superansac.h"
-
-#include "estimators/solver_homography_four_point.h"
-#include "estimators/estimator_homography.h"
-
-#include "estimators/solver_essential_matrix_five_point_nister.h"
-#include "estimators/solver_essential_matrix_bundle_adjustment.h"
-#include "estimators/estimator_essential_matrix.h"
-
-#include "estimators/solver_fundamental_matrix_seven_point.h"
-#include "estimators/solver_fundamental_matrix_eight_point.h"
-#include "estimators/solver_fundamental_matrix_bundle_adjustment.h"
-#include "estimators/estimator_fundamental_matrix.h"
-
-#include "estimators/solver_rigid_transform_proscrutes.h"
-#include "estimators/estimator_rigid_transformation.h"
-
-#include "estimators/solver_p3p_lambda_twist.h"
-#include "estimators/solver_pnp_bundle_adjustment.h"
-#include "estimators/estimator_absolute_pose.h"
-
 #include "estimators/numerical_optimizer/types.h"
 
-#include "superansac.h"
+#include <Eigen/Dense>
+
+#include "camera/types.h"
+#include "estimators/estimator_absolute_pose.h"
+#include "estimators/estimator_essential_matrix.h"
+#include "estimators/estimator_fundamental_matrix.h"
+#include "estimators/estimator_homography.h"
+#include "estimators/estimator_rigid_transformation.h"
+#include "estimators/solver_essential_matrix_bundle_adjustment.h"
+#include "estimators/solver_essential_matrix_five_point_nister.h"
+#include "estimators/solver_fundamental_matrix_bundle_adjustment.h"
+#include "estimators/solver_fundamental_matrix_eight_point.h"
+#include "estimators/solver_fundamental_matrix_seven_point.h"
+#include "estimators/solver_homography_four_point.h"
+#include "estimators/solver_p3p_lambda_twist.h"
+#include "estimators/solver_pnp_bundle_adjustment.h"
+#include "estimators/solver_rigid_transform_proscrutes.h"
+#include "inlier_selectors/types.h"
+#include "local_optimization/types.h"
+#include "neighborhood/types.h"
 #include "samplers/types.h"
 #include "scoring/types.h"
-#include "local_optimization/types.h"
+#include "superansac.h"
 #include "termination/types.h"
-#include "neighborhood/types.h"
-#include "inlier_selectors/types.h"
 #include "utils/types.h"
 #include "utils/utils_point_correspondence.h"
-#include "camera/types.h"
 
 // Function to initialize the neighborhood graph
 template <size_t _DimensionNumber>

@@ -33,10 +33,12 @@
 // Author: Daniel Barath (barath.daniel@sztaki.mta.hu)
 #pragma once
 
-#include <vector>
 #include <Eigen/Core>
-#include "abstract_local_optimizer.h"
+
+#include <vector>
+
 #include "../utils/types.h"
+#include "abstract_local_optimizer.h"
 
 namespace superansac {
 namespace local_optimization {

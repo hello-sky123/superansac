@@ -35,9 +35,9 @@
 
 #include <Eigen/Eigen>
 
-#include "abstract_solver.h"
 #include "../models/model.h"
 #include "../utils/types.h"
+#include "abstract_solver.h"
 
 namespace superansac {
 namespace estimator {

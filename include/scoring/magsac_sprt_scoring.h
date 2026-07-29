@@ -9,19 +9,21 @@
 // SPRT adaptation: <your name/email>
 #pragma once
 
-#include "../utils/macros.h"
-#include "../models/model.h"
-#include "../estimators/abstract_estimator.h"
-#include "../utils/types.h"
-#include "abstract_scoring.h"
-#include "score.h"
 #include <Eigen/Core>
-#include "magsac_look_up_table.h"
+
 #include <boost/math/special_functions/gamma.hpp>
 #include <chrono>
-#include <random>
-#include <numeric>
 #include <cmath>
+#include <numeric>
+#include <random>
+
+#include "../estimators/abstract_estimator.h"
+#include "../models/model.h"
+#include "../utils/macros.h"
+#include "../utils/types.h"
+#include "abstract_scoring.h"
+#include "magsac_look_up_table.h"
+#include "score.h"
 
 namespace superansac {
 namespace scoring {

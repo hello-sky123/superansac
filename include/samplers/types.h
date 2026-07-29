@@ -35,15 +35,14 @@
 
 #include <memory>
 
-#include "utils/macros.h"
-
 #include "abstract_sampler.h"
-#include "uniform_random_sampler.h"
-#include "prosac_sampler.h"
+#include "adaptive_reordering_sampler.h"
+#include "importance_sampler.h"
 #include "napsac_sampler.h"
 #include "progressive_napsac_sampler.h"
-#include "importance_sampler.h"
-#include "adaptive_reordering_sampler.h"
+#include "prosac_sampler.h"
+#include "uniform_random_sampler.h"
+#include "utils/macros.h"
 
 namespace superansac {
 namespace samplers {

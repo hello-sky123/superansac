@@ -34,6 +34,7 @@
 #pragma once
 
 #include <Eigen/Dense>
+
 #include "../utils/types.h"
 
 namespace superansac::models {

@@ -33,16 +33,16 @@
 // Author: Daniel Barath (barath.daniel@sztaki.mta.hu)
 #pragma once
 
-#include "solver_fundamental_matrix_eight_point.h"
-#include "solver_essential_matrix_five_point_nister.h"
-#include "abstract_solver.h"
-#include "../utils/math_utils.h"
-#include "../models/model.h"
-#include "../utils/types.h"
-
-#include "numerical_optimizer/bundle.h"
 #include "numerical_optimizer/camera_pose.h"
+
+#include "../models/model.h"
+#include "../utils/math_utils.h"
+#include "../utils/types.h"
+#include "abstract_solver.h"
+#include "numerical_optimizer/bundle.h"
 #include "numerical_optimizer/essential.h"
+#include "solver_essential_matrix_five_point_nister.h"
+#include "solver_fundamental_matrix_eight_point.h"
 
 namespace superansac {
 namespace estimator {
