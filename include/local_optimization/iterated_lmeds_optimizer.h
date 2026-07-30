@@ -53,23 +53,15 @@ namespace local_optimization {
 class IteratedLMEDSOptimizer : public LocalOptimizer {
  protected:
   size_t binNumber;
-  double thresholdMultiplier;
   models::Types modelType;
 
  public:
-  IteratedLMEDSOptimizer()
-      : binNumber(50), thresholdMultiplier(1.0), modelType(models::Types::Homography) {}
+  IteratedLMEDSOptimizer() : binNumber(50), modelType(models::Types::Homography) {}
 
   ~IteratedLMEDSOptimizer() {}
 
   // Set the maximum number of iterations
   void setMaxIterations(const size_t maxIterations_) {}
-
-  void setBinNumber(const size_t kBinNumber_) { binNumber = kBinNumber_; }
-
-  void setThresholdMultiplier(const double kThresholdMultiplier_) {
-    thresholdMultiplier = kThresholdMultiplier_;
-  }
 
   void setModelType(const models::Types kModelType_) { modelType = kModelType_; }
 
@@ -87,8 +79,8 @@ class IteratedLMEDSOptimizer : public LocalOptimizer {
     // The invalid score
     static const scoring::Score kInvalidScore = scoring::Score();
 
-    // The wide threshold for the inlier selection
-    const double kWideThreshold = thresholdMultiplier * kScoring_->getThreshold();
+    // The threshold for the candidate inlier selection below
+    const double kSelectionThreshold = kScoring_->getThreshold();
 
     // The estimated models
     std::vector<models::Model> estimatedModels;
@@ -110,28 +102,29 @@ class IteratedLMEDSOptimizer : public LocalOptimizer {
     // A flag indicating if the model has been updated
     bool updated = false;
 
-    std::vector<std::pair<double, size_t>> wideInliers;
-    wideInliers.reserve(kData_.rows());
+    std::vector<std::pair<double, size_t>> candidateInliers;
+    candidateInliers.reserve(kData_.rows());
 
-    // Get the inliers with the wide threshold
-    kScoring_->getInliers(kData_, estimatedModel_, kEstimator_, wideInliers, kWideThreshold);
+    // Collect the candidate inliers, sorted by residual, to be split into bins
+    kScoring_->getInliers(kData_, estimatedModel_, kEstimator_, candidateInliers,
+                          kSelectionThreshold);
 
     // Sort the inliers by the residuals
-    std::sort(std::begin(wideInliers), std::end(wideInliers));
+    std::sort(std::begin(candidateInliers), std::end(candidateInliers));
 
     // Divide the inliers into bins
-    const size_t binSize = wideInliers.size() / binNumber;
+    const size_t binSize = candidateInliers.size() / binNumber;
 
     std::vector<cv::Point2d> sourceKeypoints, destinationKeypoints;
     std::vector<uchar> mask;
-    mask.reserve(wideInliers.size());
-    sourceKeypoints.reserve(wideInliers.size());
-    destinationKeypoints.reserve(wideInliers.size());
+    mask.reserve(candidateInliers.size());
+    sourceKeypoints.reserve(candidateInliers.size());
+    destinationKeypoints.reserve(candidateInliers.size());
 
     for (size_t binIdx = 0; binIdx < binNumber; ++binIdx) {
       // The end indices of the current bin
       const size_t startIdx = binIdx * binSize;
-      const size_t endIdx = std::min((binIdx + 1) * binSize, wideInliers.size());
+      const size_t endIdx = std::min((binIdx + 1) * binSize, candidateInliers.size());
 
       // If the end index is smaller than the sample size, continue
       if (endIdx < kEstimator_->sampleSize() + 1) continue;
@@ -140,7 +133,7 @@ class IteratedLMEDSOptimizer : public LocalOptimizer {
       sourceKeypoints.resize(endIdx);
       destinationKeypoints.resize(endIdx);
       for (size_t inlierIdx = startIdx; inlierIdx < endIdx; ++inlierIdx) {
-        const auto& eigenCorrespondence = kData_.row(wideInliers[inlierIdx].second);
+        const auto& eigenCorrespondence = kData_.row(candidateInliers[inlierIdx].second);
 
         sourceKeypoints[inlierIdx].x = eigenCorrespondence(0);
         sourceKeypoints[inlierIdx].y = eigenCorrespondence(1);
