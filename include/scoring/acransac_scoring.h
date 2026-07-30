@@ -58,6 +58,13 @@ class ACRANSACScoring : public AbstractScoring {
   double imageWidthDst;
   double imageHeightDst;
 
+  // Cached a-contrario tables, rebuilt whenever the point count changes.
+  // Mutable because scoreImpl() is const; per-instance rather than static so
+  // the cache cannot leak between estimations.
+  mutable double mLoge0;
+  mutable std::vector<double> mLogcN;
+  mutable std::vector<double> mLogcK;
+
  public:
   // Constructor
   ACRANSACScoring() : ACRANSACScoring(10) {}
@@ -67,7 +74,8 @@ class ACRANSACScoring : public AbstractScoring {
         imageWidthSrc(0.0),
         imageHeightSrc(0.0),
         imageWidthDst(0.0),
-        imageHeightDst(0.0) {}
+        imageHeightDst(0.0),
+        mLoge0(0.0) {}
 
   // Destructor
   ~ACRANSACScoring() {}
@@ -158,11 +166,12 @@ class ACRANSACScoring : public AbstractScoring {
     std::vector<std::pair<double, size_t>> residuals;
     residuals.reserve(kPointNumber);
 
-    // A-Contrario Epsilon 0 value
-    static double mLoge0;
-
-    // Combinatorial log
-    static std::vector<double> mLogcN, mLogcK;
+    // The combinatorial-log tables and epsilon-0 value are cached in instance
+    // members (see below), not function-local statics. A scoring object is
+    // created per estimation, so the cache is still built at most once per run,
+    // but it no longer persists across calls -- with statics, the tables and
+    // mLoge0 outlived the estimator they were computed for, making a result
+    // depend on what had been scored earlier in the process.
 
     // If the log combi is not computed, compute it
     if (mLogcN.size() != kPointNumber + 1) {
