@@ -35,10 +35,10 @@
 
 #include <Eigen/Core>
 
-#include <random>
 #include <vector>
 
 #include "../utils/types.h"
+#include "../utils/uniform_random_generator.h"
 #include "abstract_local_optimizer.h"
 
 namespace superansac {
@@ -105,10 +105,12 @@ class CrossValidationOptimizer : public LocalOptimizer {
         std::max(kMinimalSampleSize, static_cast<size_t>(sampleSizeMultiplier * kInlierCount));
     std::vector<double> kAccumulatedScores(kInlierCount, 0.0);
 
-    // Setup for random sampling with replacement.
-    std::random_device randomDevice;
-    std::mt19937 random_generator(randomDevice());
-    std::uniform_int_distribution<size_t> distribution(0, kInlierCount - 1);
+    // Setup for random sampling with replacement. Uses the project's
+    // fixed-seed generator rather than std::random_device so repeated runs on
+    // the same input agree, matching the rest of the pipeline (see the
+    // run-scoped RNG in SupeRansac::run()).
+    utils::UniformRandomGenerator<size_t> randomGenerator;
+    randomGenerator.resetGenerator(0, kInlierCount - 1);
 
     // --- Cross-Validation Loop ---
     // In each repetition, a model is estimated from a random subset of inliers
@@ -123,7 +125,7 @@ class CrossValidationOptimizer : public LocalOptimizer {
     for (size_t i = 0; i < repetitions; ++i) {
       // 1. Create a bootstrap sample from the inliers.
       for (size_t j = 0; j < kSampleSize; ++j)
-        currentSample[j] = kInliers_[distribution(random_generator)];
+        currentSample[j] = kInliers_[randomGenerator.getRandomNumber()];
 
       if (useInliers)
         for (size_t j = 0; j < kSampleSize; ++j)
