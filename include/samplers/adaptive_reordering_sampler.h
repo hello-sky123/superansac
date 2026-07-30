@@ -33,6 +33,8 @@
 // Author: Daniel Barath (majti89@gmail.com)
 #pragma once
 
+#include <cmath>
+#include <cstdlib>
 #include <queue>
 #include <vector>
 
@@ -49,6 +51,11 @@ class AdaptiveReorderingSampler : public AbstractSampler {
   std::vector<std::tuple<double, size_t, size_t, double, double>> probabilities;
   double estimatorVariance;
   double randomness, randomness2, randomnessRandMax;
+
+  // Jitter source for update(). The project's fixed-seed generator rather than
+  // std::rand(), which is never seeded here and shares global state with the
+  // rest of the process.
+  utils::UniformRandomGenerator<size_t> randomGenerator;
 
   std::priority_queue<std::pair<double, size_t>, std::vector<std::pair<double, size_t>>>
       processingQueue;
@@ -80,6 +87,9 @@ class AdaptiveReorderingSampler : public AbstractSampler {
     randomness = kRandomness_;
     randomness2 = randomness / 2.0;
     randomnessRandMax = randomness / static_cast<double>(RAND_MAX);
+    // Draw the jitter from the same [0, RAND_MAX] range std::rand() used, so
+    // randomnessRandMax keeps scaling it to +/- randomness/2.
+    randomGenerator.resetGenerator(0, static_cast<size_t>(RAND_MAX));
 
     // Saving the probabilities
     double a, b, probability;
@@ -117,8 +127,11 @@ class AdaptiveReorderingSampler : public AbstractSampler {
 
       double& updatedInlierRatio = std::get<0>(probabilities[kSampleIdx]);
 
-      updatedInlierRatio = abs(a / (a + b + appearanceNumber)) +
-                           randomnessRandMax * static_cast<double>(rand()) - randomness2;
+      // Same arithmetic as before, drawing from [0, RAND_MAX] so randomnessRandMax
+      // still scales the jitter to +/- randomness/2.
+      updatedInlierRatio =
+          std::abs(a / (a + b + appearanceNumber)) +
+          randomnessRandMax * static_cast<double>(randomGenerator.getRandomNumber()) - randomness2;
 
       updatedInlierRatio = std::max(0.0, std::min(0.999, updatedInlierRatio));
 
