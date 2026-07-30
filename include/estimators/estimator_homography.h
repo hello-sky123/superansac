@@ -257,8 +257,10 @@ class HomographyEstimator : public Estimator {
 
     // Calculating the mass points in both images
     for (size_t i = 0; i < kSampleNumber_; ++i) {
-      // Get index of the current point
-      const size_t& idx = kSample_[i];
+      // Get index of the current point. A null sample means "use the first
+      // kSampleNumber_ rows of kData_ in order", matching the convention in
+      // estimateModelNonminimal().
+      const size_t idx = kSample_ == nullptr ? i : kSample_[i];
 
       // Add the coordinates to that of the mass points
       massPointSrc[0] += kData_(idx, 0);
@@ -277,7 +279,7 @@ class HomographyEstimator : public Estimator {
     double average_distance_src = 0.0, average_distance_dst = 0.0;
     for (size_t i = 0; i < kSampleNumber_; ++i) {
       // Get index of the current point
-      const size_t& idx = kSample_[i];
+      const size_t idx = kSample_ == nullptr ? i : kSample_[i];
 
       const double& x1 = kData_(idx, 0);
       const double& y1 = kData_(idx, 1);
@@ -303,7 +305,7 @@ class HomographyEstimator : public Estimator {
     // Compute the normalized coordinates
     for (size_t i = 0; i < kSampleNumber_; ++i) {
       // Get index of the current point
-      const size_t& idx = kSample_[i];
+      const size_t idx = kSample_ == nullptr ? i : kSample_[i];
 
       const double& x1 = kData_(idx, 0);
       const double& y1 = kData_(idx, 1);
