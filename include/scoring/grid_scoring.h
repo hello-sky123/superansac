@@ -83,6 +83,12 @@ class GridScoring : public AbstractScoring {
             std::vector<const std::vector<size_t>*>* kPotentialInlierSets_) const override {
     // Create a static empty Score
     static const Score kEmptyScore;
+    // This scoring is unusable without a neighborhood graph. Not every caller
+    // sets one (estimateAbsolutePose has no grid branch), and dereferencing the
+    // null pointer crashed instead of reporting the misconfiguration.
+    if (neighborhood == nullptr)
+      throw std::runtime_error(
+          "Grid scoring requires a neighborhood graph, which has not been set.");
     // Retrieve the cells in the neighborhood graph
     const std::unordered_map<size_t, std::pair<std::vector<size_t>, std::vector<size_t>>>& cells =
         neighborhood->getCells();
