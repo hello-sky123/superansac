@@ -94,33 +94,39 @@ class AbstractScoring {
     getWeightsImpl(kData_, kModel_, kEstimator_, weights_, kIndices_);
   }
 
-  FORCE_INLINE void getInliers(
+  static FORCE_INLINE void getInliers(
       const DataMatrix& kData_,                          // Data matrix
       const models::Model& kModel_,                      // The model to be scored
       const estimator::Estimator* kEstimator_,           // Estimator
       std::vector<std::pair<double, size_t>>& inliers_,  // The inliers of the model
       const double kThreshold_,                          // The threshold for inlier selection
-      const bool kReturnSquaredResidual = true) const    // Return the squared residuals or not
+      const bool kReturnSquaredResidual = true)          // Return the squared residuals or not
   {
     // The number of points
-    const int kPointNumber = kData_.rows();
-    // The squared residual
-    double squaredResidual;
+    const long kPointNumber = kData_.rows();
+
+    // Select against the caller-supplied threshold, not the member one, so a
+    // caller can widen or narrow the selection (IteratedLMEDSOptimizer passes
+    // thresholdMultiplier * getThreshold() to collect a wider candidate set).
+    // Residuals below are squared, so square the threshold rather than taking a
+    // root per point.
+    const double kSquaredThreshold = kThreshold_ * kThreshold_;
 
     // Iterate through all points, calculate the squaredResiduals and store the points as inliers if needed.
     inliers_.clear();
     inliers_.reserve(kPointNumber);
     for (int pointIdx = 0; pointIdx < kPointNumber; ++pointIdx) {
-      // Calculate the point-to-model residual
-      squaredResidual = kEstimator_->squaredResidual(kData_.row(pointIdx).data(), kModel_);
+      // The squared residual, Calculate the point-to-model residual
+      double squaredResidual = kEstimator_->squaredResidual(kData_.row(pointIdx).data(), kModel_);
 
       // If the residual is smaller than the threshold, store it as an inlier and
       // increase the score.
-      if (squaredResidual < squaredThreshold)
+      if (squaredResidual < kSquaredThreshold) {
         if (kReturnSquaredResidual)
-          inliers_.emplace_back(std::make_pair(squaredResidual, pointIdx));
+          inliers_.emplace_back(squaredResidual, pointIdx);
         else
-          inliers_.emplace_back(std::make_pair(std::sqrt(squaredResidual), pointIdx));
+          inliers_.emplace_back(std::sqrt(squaredResidual), pointIdx);
+      }
     }
   }
 

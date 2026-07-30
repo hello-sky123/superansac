@@ -42,25 +42,24 @@
 #include "abstract_scoring.h"
 #include "score.h"
 
-namespace superansac {
-namespace scoring {
+namespace superansac::scoring {
 
 class GAUScoring : public AbstractScoring {
  public:
   // Constructor
-  GAUScoring() {}
+  GAUScoring() = default;
 
   // Destructor
-  ~GAUScoring() {}
+  ~GAUScoring() override = default;
 
   // Set the threshold
-  FORCE_INLINE void setThreshold(const double kThreshold_) {
+  FORCE_INLINE void setThreshold(const double kThreshold_) override {
     threshold = 1.5 * kThreshold_;
     squaredThreshold = threshold * threshold;
   }
 
   FORCE_INLINE void updateSPRTParameters(const Score& currentBest, int iterationIndex,
-                                         size_t totalPoints) {}
+                                         size_t totalPoints) override {}
 
   // Sample function
   FORCE_INLINE Score
@@ -170,5 +169,4 @@ class GAUScoring : public AbstractScoring {
   }
 };
 
-}  // namespace scoring
-}  // namespace superansac
+}  // namespace superansac::scoring
