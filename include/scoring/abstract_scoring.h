@@ -53,35 +53,46 @@ class AbstractScoring {
   AbstractScoring() : threshold(1.0), squaredThreshold(1.0) {}
 
   // Destructor
-  virtual ~AbstractScoring() {}
+  virtual ~AbstractScoring() = default;
 
   // Set the threshold
-  FORCE_INLINE virtual void setThreshold(const double kThreshold_) = 0;
+  FORCE_INLINE virtual void setThreshold(double kThreshold_) = 0;
 
   // Get the threshold
-  FORCE_INLINE const double& getThreshold() const { return threshold; };
+  [[nodiscard]] FORCE_INLINE const double& getThreshold() const { return threshold; };
 
   FORCE_INLINE virtual void updateSPRTParameters(const Score& currentBest, int iterationIndex,
                                                  size_t totalPoints) = 0;
 
-  // Sample function
-  FORCE_INLINE virtual Score score(
-      const DataMatrix& kData_,                 // Data matrix
-      const models::Model& kModel_,             // The model to be scored
-      const estimator::Estimator* kEstimator_,  // Estimator
-      std::vector<size_t>& inliers_,            // Inlier indices
-      const bool kStoreInliers_ = true,         // Store inliers or not
-      const Score& kBestScore_ = Score(),
-      std::vector<const std::vector<size_t>*>* kPotentialInlierSets_ =
-          nullptr) const = 0;  // The potential inlier sets from the inlier selector
+  // Sample function.
+  // Non-virtual: the default arguments live here, in one place, and the
+  // overridable part is scoreImpl() below. Defaults on a virtual are bound
+  // statically from the declared type, so a subclass that repeated them with
+  // different values would silently change behaviour depending on whether the
+  // call went through the base or the derived type.
+  FORCE_INLINE Score score(const DataMatrix& kData_,                 // Data matrix
+                           const models::Model& kModel_,             // The model to be scored
+                           const estimator::Estimator* kEstimator_,  // Estimator
+                           std::vector<size_t>& inliers_,            // Inlier indices
+                           const bool kStoreInliers_ = true,         // Store inliers or not
+                           const Score& kBestScore_ = Score(),       // The best score found so far
+                           std::vector<const std::vector<size_t>*>* kPotentialInlierSets_ =
+                               nullptr) const  // The potential inlier sets from the inlier selector
+  {
+    return scoreImpl(kData_, kModel_, kEstimator_, inliers_, kStoreInliers_, kBestScore_,
+                     kPotentialInlierSets_);
+  }
 
-  // Get weights for the points
-  FORCE_INLINE virtual void getWeights(
-      const DataMatrix& kData_,                                   // Data matrix
-      const models::Model& kModel_,                               // The model to be scored
-      const estimator::Estimator* kEstimator_,                    // Estimator
-      std::vector<double>& weights_,                              // The weights of the points
-      const std::vector<size_t>* kIndices_ = nullptr) const = 0;  // The indices of the points
+  // Get weights for the points. Non-virtual wrapper, see score() above.
+  FORCE_INLINE void getWeights(
+      const DataMatrix& kData_,                              // Data matrix
+      const models::Model& kModel_,                          // The model to be scored
+      const estimator::Estimator* kEstimator_,               // Estimator
+      std::vector<double>& weights_,                         // The weights of the points
+      const std::vector<size_t>* kIndices_ = nullptr) const  // The indices of the points
+  {
+    getWeightsImpl(kData_, kModel_, kEstimator_, weights_, kIndices_);
+  }
 
   FORCE_INLINE void getInliers(
       const DataMatrix& kData_,                          // Data matrix
@@ -114,6 +125,26 @@ class AbstractScoring {
   }
 
  protected:
+  // Overridable implementations. No default arguments here: every parameter is
+  // supplied by the non-virtual wrappers above, so the defaults cannot drift
+  // between base and derived declarations.
+  FORCE_INLINE virtual Score scoreImpl(
+      const DataMatrix& kData_,                 // Data matrix
+      const models::Model& kModel_,             // The model to be scored
+      const estimator::Estimator* kEstimator_,  // Estimator
+      std::vector<size_t>& inliers_,            // Inlier indices
+      bool kStoreInliers_,                      // Store inliers or not
+      const Score& kBestScore_,                 // The best score found so far
+      std::vector<const std::vector<size_t>*>* kPotentialInlierSets_)
+      const = 0;  // The potential inlier sets from the inlier selector
+
+  FORCE_INLINE virtual void getWeightsImpl(
+      const DataMatrix& kData_,                         // Data matrix
+      const models::Model& kModel_,                     // The model to be scored
+      const estimator::Estimator* kEstimator_,          // Estimator
+      std::vector<double>& weights_,                    // The weights of the points
+      const std::vector<size_t>* kIndices_) const = 0;  // The indices of the points
+
   // 阈值
   double threshold;
   double squaredThreshold;

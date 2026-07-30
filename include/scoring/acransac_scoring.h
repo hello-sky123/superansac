@@ -135,14 +135,11 @@ class ACRANSACScoring : public AbstractScoring {
   }
 
   // Sample function
-  FORCE_INLINE Score score(const DataMatrix& kData_,                 // Data matrix
-                           const models::Model& kModel_,             // The model to be scored
-                           const estimator::Estimator* kEstimator_,  // Estimator
-                           std::vector<size_t>& inliers_,            // Inlier indices
-                           const bool kStoreInliers_ = true, const Score& kBestScore_ = Score(),
-                           std::vector<const std::vector<size_t>*>* kPotentialInlierSets_ =
-                               nullptr) const  // The potential inlier sets from the inlier selector
-  {
+  FORCE_INLINE Score
+  scoreImpl(const DataMatrix& kData_, const models::Model& kModel_,
+            const estimator::Estimator* kEstimator_, std::vector<size_t>& inliers_,
+            const bool kStoreInliers_, const Score& kBestScore_,
+            std::vector<const std::vector<size_t>*>* kPotentialInlierSets_) const override {
     // Create a static empty Score
     static const Score kEmptyScore;
     // The number of points
@@ -245,12 +242,12 @@ class ACRANSACScoring : public AbstractScoring {
   }
 
   // Get weights for the points
-  FORCE_INLINE void getWeights(
-      const DataMatrix& kData_,                              // Data matrix
-      const models::Model& kModel_,                          // The model to be scored
-      const estimator::Estimator* kEstimator_,               // Estimator
-      std::vector<double>& weights_,                         // The weights of the points
-      const std::vector<size_t>* kIndices_ = nullptr) const  // The indices of the points
+  FORCE_INLINE void getWeightsImpl(
+      const DataMatrix& kData_,                             // Data matrix
+      const models::Model& kModel_,                         // The model to be scored
+      const estimator::Estimator* kEstimator_,              // Estimator
+      std::vector<double>& weights_,                        // The weights of the points
+      const std::vector<size_t>* kIndices_) const override  // The indices of the points
   {
     if (kIndices_ == nullptr) {
       weights_.resize(kData_.rows());

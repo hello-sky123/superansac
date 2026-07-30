@@ -267,10 +267,10 @@ class MAGSACSPRTScoring : public AbstractScoring {
   }
 
   FORCE_INLINE Score
-  score(const DataMatrix& kData_, const models::Model& kModel_,
-        const estimator::Estimator* kEstimator_, std::vector<size_t>& inliers_,
-        const bool kStoreInliers_ = true, const Score& kBestScore_ = Score(),
-        std::vector<const std::vector<size_t>*>* kPotentialInlierSets_ = nullptr) const override {
+  scoreImpl(const DataMatrix& kData_, const models::Model& kModel_,
+            const estimator::Estimator* kEstimator_, std::vector<size_t>& inliers_,
+            const bool kStoreInliers_, const Score& kBestScore_,
+            std::vector<const std::vector<size_t>*>* kPotentialInlierSets_) const override {
     static const Score kEmptyScore;
 
     const int N = kData_.rows();
@@ -353,10 +353,10 @@ class MAGSACSPRTScoring : public AbstractScoring {
     return Score(inlierCount, scoreVal);
   }
 
-  FORCE_INLINE void getWeights(const DataMatrix& kData_, const models::Model& kModel_,
-                               const estimator::Estimator* kEstimator_,
-                               std::vector<double>& weights_,
-                               const std::vector<size_t>* kIndices_ = nullptr) const override {
+  FORCE_INLINE void getWeightsImpl(const DataMatrix& kData_, const models::Model& kModel_,
+                                   const estimator::Estimator* kEstimator_,
+                                   std::vector<double>& weights_,
+                                   const std::vector<size_t>* kIndices_) const override {
     if (kIndices_ == nullptr) {
       const int N = kData_.rows();
       weights_.resize(N);
