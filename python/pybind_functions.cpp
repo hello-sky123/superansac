@@ -475,7 +475,6 @@ std::tuple<Eigen::Matrix4d, std::vector<size_t>, double, size_t> estimateRigidTr
                       GRID)  // Set the neighborhood structure if the scoring is GRID
   {
     // Check whether the neighborhood graph is already initialized
-    superansac::neighborhood::GridNeighborhoodGraph<6>* gridNeighborhoodGraph;
     if (neighborhoodGraph == nullptr)
       // Initialize the neighborhood graph
       initializeNeighborhood<6>(kCorrespondences_,   // The point correspondences
@@ -487,6 +486,11 @@ std::tuple<Eigen::Matrix4d, std::vector<size_t>, double, size_t> estimateRigidTr
                                   Grid)  // Check whether the provided neighborhood type is grid
       throw std::invalid_argument(
           "The neighborhood graph is already initialized, but the neighborhood type is not grid.");
+    // Downcast the owning pointer: GridScoring needs the concrete grid type.
+    auto* gridNeighborhoodGraph =
+        dynamic_cast<superansac::neighborhood::GridNeighborhoodGraph<6>*>(neighborhoodGraph.get());
+    if (gridNeighborhoodGraph == nullptr)
+      throw std::invalid_argument("Grid scoring requires a grid neighborhood graph.");
     // Set the neighborhood graph
     dynamic_cast<superansac::scoring::GridScoring<6>*>(scorer.get())
         ->setNeighborhood(gridNeighborhoodGraph);
@@ -715,7 +719,6 @@ std::tuple<Eigen::Matrix3d, std::vector<size_t>, double, size_t> estimateFundame
                            GRID)  // Set the neighborhood structure if the scoring is GRID
   {
     // Check whether the neighborhood graph is already initialized
-    superansac::neighborhood::GridNeighborhoodGraph<4>* gridNeighborhoodGraph;
     if (neighborhoodGraph == nullptr)
       // Initialize the neighborhood graph
       initializeNeighborhood<4>(
@@ -728,6 +731,11 @@ std::tuple<Eigen::Matrix3d, std::vector<size_t>, double, size_t> estimateFundame
                                   Grid)  // Check whether the provided neighborhood type is grid
       throw std::invalid_argument(
           "The neighborhood graph is already initialized, but the neighborhood type is not grid.");
+    // Downcast the owning pointer: GridScoring needs the concrete grid type.
+    auto* gridNeighborhoodGraph =
+        dynamic_cast<superansac::neighborhood::GridNeighborhoodGraph<4>*>(neighborhoodGraph.get());
+    if (gridNeighborhoodGraph == nullptr)
+      throw std::invalid_argument("Grid scoring requires a grid neighborhood graph.");
     // Set the neighborhood graph
     dynamic_cast<superansac::scoring::GridScoring<4>*>(scorer.get())
         ->setNeighborhood(gridNeighborhoodGraph);
@@ -997,7 +1005,6 @@ std::tuple<Eigen::Matrix3d, std::vector<size_t>, double, size_t> estimateEssenti
                            GRID)  // Set the neighborhood structure if the scoring is GRID
   {
     // Check whether the neighborhood graph is already initialized
-    superansac::neighborhood::GridNeighborhoodGraph<4>* gridNeighborhoodGraph;
     if (neighborhoodGraph == nullptr)
       // Initialize the neighborhood graph
       initializeNeighborhood<4>(
@@ -1010,6 +1017,11 @@ std::tuple<Eigen::Matrix3d, std::vector<size_t>, double, size_t> estimateEssenti
                                   Grid)  // Check whether the provided neighborhood type is grid
       throw std::invalid_argument(
           "The neighborhood graph is already initialized, but the neighborhood type is not grid.");
+    // Downcast the owning pointer: GridScoring needs the concrete grid type.
+    auto* gridNeighborhoodGraph =
+        dynamic_cast<superansac::neighborhood::GridNeighborhoodGraph<4>*>(neighborhoodGraph.get());
+    if (gridNeighborhoodGraph == nullptr)
+      throw std::invalid_argument("Grid scoring requires a grid neighborhood graph.");
     // Set the neighborhood graph
     dynamic_cast<superansac::scoring::GridScoring<4>*>(scorer.get())
         ->setNeighborhood(gridNeighborhoodGraph);
@@ -1195,7 +1207,6 @@ std::tuple<Eigen::Matrix3d, std::vector<size_t>, double, size_t> estimateHomogra
                            GRID)  // Set the neighborhood structure if the scoring is GRID
   {
     // Check whether the neighborhood graph is already initialized
-    superansac::neighborhood::GridNeighborhoodGraph<4>* gridNeighborhoodGraph;
     if (neighborhoodGraph == nullptr)
       // Initialize the neighborhood graph
       initializeNeighborhood<4>(
@@ -1208,6 +1219,11 @@ std::tuple<Eigen::Matrix3d, std::vector<size_t>, double, size_t> estimateHomogra
                                   Grid)  // Check whether the provided neighborhood type is grid
       throw std::invalid_argument(
           "The neighborhood graph is already initialized, but the neighborhood type is not grid.");
+    // Downcast the owning pointer: GridScoring needs the concrete grid type.
+    auto* gridNeighborhoodGraph =
+        dynamic_cast<superansac::neighborhood::GridNeighborhoodGraph<4>*>(neighborhoodGraph.get());
+    if (gridNeighborhoodGraph == nullptr)
+      throw std::invalid_argument("Grid scoring requires a grid neighborhood graph.");
     // Set the neighborhood graph
     dynamic_cast<superansac::scoring::GridScoring<4>*>(scorer.get())
         ->setNeighborhood(gridNeighborhoodGraph);
