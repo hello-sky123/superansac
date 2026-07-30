@@ -60,12 +60,12 @@ class P3PLambdaTwistSolver : public AbstractSolver {
 
   // Estimate the model parameters from the given point sample
   // using weighted fitting if possible.
-  FORCE_INLINE bool estimateModel(
-      const DataMatrix& kData_,                           // The set of data points
-      const size_t* kSample_,                             // The sample used for the estimation
-      const size_t kSampleNumber_,                        // The size of the sample
-      std::vector<models::Model>& models_,                // The estimated model parameters
-      const double* kWeights_ = nullptr) const override;  // The weight for each point
+  FORCE_INLINE bool estimateModelImpl(
+      const DataMatrix& kData_,                 // The set of data points
+      const size_t* kSample_,                   // The sample used for the estimation
+      const size_t kSampleNumber_,              // The size of the sample
+      std::vector<models::Model>& models_,      // The estimated model parameters
+      const double* kWeights_) const override;  // The weight for each point
 
  protected:
   FORCE_INLINE void computeEig3x3known0(const Eigen::Matrix3d& M, Eigen::Matrix3d& E, double& sig1,
@@ -139,7 +139,7 @@ FORCE_INLINE void P3PLambdaTwistSolver::refineLambda(double& lambda1, double& la
   }
 }
 
-FORCE_INLINE bool P3PLambdaTwistSolver::estimateModel(
+FORCE_INLINE bool P3PLambdaTwistSolver::estimateModelImpl(
     const DataMatrix& kData_,             // The set of data points
     const size_t* kSample_,               // The sample used for the estimation
     const size_t kSampleNumber_,          // The size of the sample

@@ -65,12 +65,12 @@ class FundamentalMatrixPlaneParallaxSolver : public AbstractSolver {
   // The minimum number of points required for the estimation
   size_t sampleSize() const override { return 2; }
 
-  FORCE_INLINE bool estimateModel(
-      const DataMatrix& kData_,                          // The set of data points
-      const size_t* kSample_,                            // The sample used for the estimation
-      const size_t kSampleNumber_,                       // The size of the sample
-      std::vector<models::Model>& models_,               // The estimated model parameters
-      const double* kWeights_ = nullptr) const override  // The weight for each point
+  FORCE_INLINE bool estimateModelImpl(
+      const DataMatrix& kData_,                // The set of data points
+      const size_t* kSample_,                  // The sample used for the estimation
+      const size_t kSampleNumber_,             // The size of the sample
+      std::vector<models::Model>& models_,     // The estimated model parameters
+      const double* kWeights_) const override  // The weight for each point
   {
     // Check if the required homography has been set
     if (homography == nullptr) return false;

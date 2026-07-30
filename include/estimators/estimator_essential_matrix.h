@@ -61,10 +61,6 @@ class EssentialMatrixEstimator : public Estimator {
 
   double multError() const { return 1.0; }
 
-  double logAlpha0(size_t w, size_t h, double scalingFactor = 0.5) const {
-    return log(1.0 / (w * h * scalingFactor));
-  }
-
   // Degrees of freedom for the MAGSAC++ scoring
   size_t getDegreesOfFreedom() const { return 2; }
 
@@ -87,12 +83,12 @@ class EssentialMatrixEstimator : public Estimator {
   }
 
   // Estimating the model from a non-minimal sample
-  FORCE_INLINE bool estimateModelNonminimal(
+  FORCE_INLINE bool estimateModelNonminimalImpl(
       const DataMatrix& kData_,      // The data points
       const size_t* kSample_,        // The sample used for the estimation
       const size_t& kSampleNumber_,  // The size of a minimal sample
       std::vector<models::Model>* models_,
-      const double* kWeights_ = nullptr) const override  // The estimated model parameters
+      const double* kWeights_) const override  // The weights of the points
   {
     // Return of there are not enough points for the estimation
     if (kSampleNumber_ < nonMinimalSampleSize()) return false;

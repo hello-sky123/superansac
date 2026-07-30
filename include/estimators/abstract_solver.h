@@ -63,10 +63,25 @@ class AbstractSolver {
 
   // Estimate the model parameters from the given point sample
   // using weighted fitting if possible.
-  virtual FORCE_INLINE bool estimateModel(const DataMatrix& kData_, const size_t* kSample_,
-                                          const size_t kSampleNumber_,
-                                          std::vector<models::Model>& models_,
-                                          const double* kWeights_ = nullptr) const = 0;
+  // Non-virtual: the default argument lives here, in one place, and the
+  // overridable part is estimateModelImpl() below. A default on a virtual binds
+  // statically from the declared type, so an override repeating it with a
+  // different value would change behaviour depending on whether the call went
+  // through the base or the derived type.
+  FORCE_INLINE bool estimateModel(const DataMatrix& kData_, const size_t* kSample_,
+                                  const size_t kSampleNumber_, std::vector<models::Model>& models_,
+                                  const double* kWeights_ = nullptr) const {
+    return estimateModelImpl(kData_, kSample_, kSampleNumber_, models_, kWeights_);
+  }
+
+ protected:
+  // Overridable implementation. No default argument here: every parameter is
+  // supplied by the non-virtual wrapper above, so the default cannot drift
+  // between the base and derived declarations.
+  virtual FORCE_INLINE bool estimateModelImpl(const DataMatrix& kData_, const size_t* kSample_,
+                                              const size_t kSampleNumber_,
+                                              std::vector<models::Model>& models_,
+                                              const double* kWeights_) const = 0;
 };
 }  // namespace solver
 }  // namespace estimator

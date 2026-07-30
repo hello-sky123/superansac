@@ -57,9 +57,10 @@ class EssentialMatrixFivePointNisterSolver : public AbstractSolver {
   size_t maximumSolutions() const override { return 10; }
   size_t sampleSize() const override { return 5; }
 
-  FORCE_INLINE bool estimateModel(const DataMatrix& kData_, const size_t* kSample_,
-                                  const size_t kSampleNumber_, std::vector<models::Model>& models_,
-                                  const double* kWeights_ = nullptr) const override;
+  FORCE_INLINE bool estimateModelImpl(const DataMatrix& kData_, const size_t* kSample_,
+                                      const size_t kSampleNumber_,
+                                      std::vector<models::Model>& models_,
+                                      const double* kWeights_) const override;
 
  protected:
   FORCE_INLINE bool estimateMinimalModel(const DataMatrix& kData_, const size_t* kSample_,
@@ -582,7 +583,7 @@ FORCE_INLINE bool EssentialMatrixFivePointNisterSolver::estimateMinimalModel(
   return true;
 }
 
-FORCE_INLINE bool EssentialMatrixFivePointNisterSolver::estimateModel(
+FORCE_INLINE bool EssentialMatrixFivePointNisterSolver::estimateModelImpl(
     const DataMatrix& kData_, const size_t* kSample_, const size_t kSampleNumber_,
     std::vector<models::Model>& models_, const double* kWeights_) const {
   return estimateMinimalModel(kData_, kSample_, kSampleNumber_, models_, kWeights_);

@@ -35,6 +35,7 @@
 
 #include <Eigen/Core>
 
+#include <cmath>
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -99,8 +100,13 @@ class Estimator {
 
   // Mult error for the AC-RANSAC scoring
   virtual double multError() const = 0;
-  // Log Alpha 0 for the AC-RANSAC scoring
-  virtual double logAlpha0(size_t w, size_t h, double scalingFactor = 0.5) const = 0;
+  // Log Alpha 0 for the AC-RANSAC scoring. Not virtual: every estimator used
+  // the same area-normalisation formula, so the five identical overrides were
+  // deleted in favour of this one definition. A default argument on a virtual
+  // also binds statically, which is what google-default-arguments warns about.
+  double logAlpha0(size_t w, size_t h, double scalingFactor = 0.5) const {
+    return std::log(1.0 / (w * h * scalingFactor));
+  }
   // Degrees of freedom for the MAGSAC++ scoring
   virtual size_t getDegreesOfFreedom() const = 0;
 
@@ -118,12 +124,20 @@ class Estimator {
   // By default, this simply implements the minimal case.
   // In case of weighted least-squares, the weights can be fed into the
   // function.
-  FORCE_INLINE virtual bool estimateModelNonminimal(
-      const DataMatrix& kData_,                      // All data points
-      const size_t* kSample_,                        // The indices of the selected points
-      const size_t& kSampleNumber_,                  // The number of selected points
-      std::vector<models::Model>* model_,            // The estimated model parameters
-      const double* kWeights_ = nullptr) const = 0;  // The weights of the points
+  // Non-virtual: the default argument lives here, in one place, and the
+  // overridable part is estimateModelNonminimalImpl() below. A default on a
+  // virtual binds statically from the declared type, so a subclass repeating it
+  // with a different value would change behaviour depending on whether the call
+  // went through the base or the derived type.
+  FORCE_INLINE bool estimateModelNonminimal(
+      const DataMatrix& kData_,                 // All data points
+      const size_t* kSample_,                   // The indices of the selected points
+      const size_t& kSampleNumber_,             // The number of selected points
+      std::vector<models::Model>* model_,       // The estimated model parameters
+      const double* kWeights_ = nullptr) const  // The weights of the points
+  {
+    return estimateModelNonminimalImpl(kData_, kSample_, kSampleNumber_, model_, kWeights_);
+  }
 
   // Given a model and a data point, calculate the error. Users should implement
   // this function appropriately for the task being solved.
@@ -175,6 +189,17 @@ class Estimator {
   {
     return true;
   }
+
+ protected:
+  // Overridable implementation. No default argument here: every parameter is
+  // supplied by the non-virtual wrapper above, so the default cannot drift
+  // between the base and derived declarations.
+  FORCE_INLINE virtual bool estimateModelNonminimalImpl(
+      const DataMatrix& kData_,            // All data points
+      const size_t* kSample_,              // The indices of the selected points
+      const size_t& kSampleNumber_,        // The number of selected points
+      std::vector<models::Model>* model_,  // The estimated model parameters
+      const double* kWeights_) const = 0;  // The weights of the points
 };
 }  // namespace estimator
 }  // namespace superansac

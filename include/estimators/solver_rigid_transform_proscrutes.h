@@ -59,12 +59,12 @@ class RigidTransformProscrutesSolver : public AbstractSolver {
 
   // Estimate the model parameters from the given point sample
   // using weighted fitting if possible.
-  FORCE_INLINE bool estimateModel(
-      const DataMatrix& kData_,                           // The set of data points
-      const size_t* kSample_,                             // The sample used for the estimation
-      const size_t kSampleNumber_,                        // The size of the sample
-      std::vector<models::Model>& models_,                // The estimated model parameters
-      const double* kWeights_ = nullptr) const override;  // The weight for each point
+  FORCE_INLINE bool estimateModelImpl(
+      const DataMatrix& kData_,                 // The set of data points
+      const size_t* kSample_,                   // The sample used for the estimation
+      const size_t kSampleNumber_,              // The size of the sample
+      std::vector<models::Model>& models_,      // The estimated model parameters
+      const double* kWeights_) const override;  // The weight for each point
 
  protected:
   FORCE_INLINE bool estimateMinimalModel(
@@ -75,7 +75,7 @@ class RigidTransformProscrutesSolver : public AbstractSolver {
       const double* kWeights_) const;       // The weight for each point
 };
 
-FORCE_INLINE bool RigidTransformProscrutesSolver::estimateModel(
+FORCE_INLINE bool RigidTransformProscrutesSolver::estimateModelImpl(
     const DataMatrix& kData_,             // The set of data points
     const size_t* kSample_,               // The sample used for the estimation
     const size_t kSampleNumber_,          // The size of the sample

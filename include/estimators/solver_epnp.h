@@ -33,12 +33,11 @@ class EPnPSolver : public AbstractSolver {
 
   // Estimate the model parameters from the given point sample
   // using weighted fitting if possible.
-  bool estimateModel(
-      const DataMatrix& kData_,                           // The set of data points
-      const size_t* kSample_,                             // The sample used for the estimation
-      const size_t kSampleNumber_,                        // The size of the sample
-      std::vector<models::Model>& models_,                // The estimated model parameters
-      const double* kWeights_ = nullptr) const override;  // The weight for each point
+  bool estimateModelImpl(const DataMatrix& kData_,             // The set of data points
+                         const size_t* kSample_,               // The sample used for the estimation
+                         const size_t kSampleNumber_,          // The size of the sample
+                         std::vector<models::Model>& models_,  // The estimated model parameters
+                         const double* kWeights_) const override;  // The weight for each point
 
  protected:
   // Chooses control points for the EPnP algorithm
@@ -77,7 +76,7 @@ class EPnPSolver : public AbstractSolver {
                      Eigen::Vector3d& t) const;
 };
 
-bool EPnPSolver::estimateModel(
+bool EPnPSolver::estimateModelImpl(
     const DataMatrix& kData_,             // The set of data points
     const size_t* kSample_,               // The sample used for the estimation
     const size_t kSampleNumber_,          // The size of the sample
