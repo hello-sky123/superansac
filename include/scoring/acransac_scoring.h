@@ -223,8 +223,15 @@ class ACRANSACScoring : public AbstractScoring {
       while (currentMaxIdx < residuals.size() && residuals[currentMaxIdx].first <= currentThreshold)
         ++currentMaxIdx;
 
-      // If the number of inliers is smaller than the sample size, continue
-      if (residuals[currentMaxIdx].first <= std::numeric_limits<float>::epsilon()) continue;
+      // Skip thresholds whose boundary point sits essentially on the model.
+      // The boundary residual only exists while currentMaxIdx is inside the
+      // vector: the loop above stops either on a residual above the threshold or
+      // on currentMaxIdx == residuals.size(), and in the latter case every
+      // residual is already counted, so there is no boundary point to test.
+      // Indexing residuals[currentMaxIdx] unconditionally read one past the end.
+      if (currentMaxIdx < residuals.size() &&
+          residuals[currentMaxIdx].first <= std::numeric_limits<float>::epsilon())
+        continue;
 
       const double kLogAlpha =
           kLogAlpha0 +
