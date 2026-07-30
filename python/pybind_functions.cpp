@@ -307,13 +307,6 @@ estimateAbsolutePose(
     dynamic_cast<superansac::termination::RANSACCriterion*>(terminationCriterion.get())
         ->setConfidence(settings_.confidence);
 
-  // Create inlier selector object if needed
-  if (settings_.inlierSelector != superansac::inlier_selector::InlierSelectorType::None) {
-    // Create the inlier selector
-    std::unique_ptr<superansac::inlier_selector::AbstractInlierSelector> inlierSelector =
-        superansac::inlier_selector::createInlierSelector(settings_.inlierSelector);
-  }
-
   // Create the RANSAC object
   superansac::SupeRansac robustEstimator;
   robustEstimator.setEstimator(estimator.get());  // Set the estimator
@@ -513,13 +506,6 @@ std::tuple<Eigen::Matrix4d, std::vector<size_t>, double, size_t> estimateRigidTr
   if (kTerminationCriterion == superansac::termination::TerminationType::RANSAC)
     dynamic_cast<superansac::termination::RANSACCriterion*>(terminationCriterion.get())
         ->setConfidence(settings_.confidence);
-
-  // Create inlier selector object if needed
-  if (settings_.inlierSelector != superansac::inlier_selector::InlierSelectorType::None) {
-    // Create the inlier selector
-    std::unique_ptr<superansac::inlier_selector::AbstractInlierSelector> inlierSelector =
-        superansac::inlier_selector::createInlierSelector(settings_.inlierSelector);
-  }
 
   // Create the RANSAC object
   superansac::SupeRansac robustEstimator;
@@ -757,13 +743,6 @@ std::tuple<Eigen::Matrix3d, std::vector<size_t>, double, size_t> estimateFundame
   if (kTerminationCriterion == superansac::termination::TerminationType::RANSAC)
     dynamic_cast<superansac::termination::RANSACCriterion*>(terminationCriterion.get())
         ->setConfidence(settings_.confidence);
-
-  // Create inlier selector object if needed
-  if (settings_.inlierSelector != superansac::inlier_selector::InlierSelectorType::None) {
-    // Create the inlier selector
-    std::unique_ptr<superansac::inlier_selector::AbstractInlierSelector> inlierSelector =
-        superansac::inlier_selector::createInlierSelector(settings_.inlierSelector);
-  }
 
   // Create the RANSAC object
   superansac::SupeRansac robustEstimator;
@@ -1044,13 +1023,6 @@ std::tuple<Eigen::Matrix3d, std::vector<size_t>, double, size_t> estimateEssenti
     dynamic_cast<superansac::termination::RANSACCriterion*>(terminationCriterion.get())
         ->setConfidence(settings_.confidence);
 
-  // Create inlier selector object if needed
-  if (settings_.inlierSelector != superansac::inlier_selector::InlierSelectorType::None) {
-    // Create the inlier selector
-    std::unique_ptr<superansac::inlier_selector::AbstractInlierSelector> inlierSelector =
-        superansac::inlier_selector::createInlierSelector(settings_.inlierSelector);
-  }
-
   // Create the RANSAC object
   superansac::SupeRansac robustEstimator;
   robustEstimator.setEstimator(estimator.get());  // Set the estimator
@@ -1244,13 +1216,6 @@ std::tuple<Eigen::Matrix3d, std::vector<size_t>, double, size_t> estimateHomogra
   if (kTerminationCriterion == superansac::termination::TerminationType::RANSAC)
     dynamic_cast<superansac::termination::RANSACCriterion*>(terminationCriterion.get())
         ->setConfidence(settings_.confidence);
-
-  // Create inlier selector object if needed
-  if (settings_.inlierSelector != superansac::inlier_selector::InlierSelectorType::None) {
-    // Create the inlier selector
-    std::unique_ptr<superansac::inlier_selector::AbstractInlierSelector> inlierSelector =
-        superansac::inlier_selector::createInlierSelector(settings_.inlierSelector);
-  }
 
   // Create the RANSAC object
   superansac::SupeRansac robustEstimator;

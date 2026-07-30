@@ -6,7 +6,14 @@
 namespace superansac {
 
 SupeRansac::SupeRansac()
-    : currentSample(nullptr), localOptimizer(nullptr), finalOptimizer(nullptr) {
+    : sampler(nullptr),
+      estimator(nullptr),
+      scoring(nullptr),
+      localOptimizer(nullptr),
+      finalOptimizer(nullptr),
+      terminationCriterion(nullptr),
+      inlierSelector(nullptr),
+      currentSample(nullptr) {
   // Reserve memory for inliers to avoid reallocations
   inliers.reserve(10000);
   tmpInliers.reserve(10000);
@@ -123,7 +130,10 @@ void SupeRansac::run(const DataMatrix& kData_) {
       // Select potential inliers if needed
       tmpInliers.clear();
       double tmpScore;
-      if (settings.inlierSelector == inlier_selector::InlierSelectorType::SpacePartitioningRANSAC) {
+      // Require the selector itself, not just the setting: only some model
+      // types wire one up, and dereferencing the null pointer crashed.
+      if (settings.inlierSelector == inlier_selector::InlierSelectorType::SpacePartitioningRANSAC &&
+          inlierSelector != nullptr) {
         potentialInlierSets.clear();
         inlierSelector->run(kData_,               // Data matrix
                             model,                // The model
