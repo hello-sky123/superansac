@@ -226,7 +226,11 @@ FORCE_INLINE bool HomographyFourPointSolver::estimateNonMinimalModel(
     ++rowIdx;
   }
 
-  // Applying SVD to solve the problem
+  // Least-squares solve by column-pivoting Householder QR. Note that a
+  // rank-deficient sample (e.g. collinear points) does not yield NaN here, it
+  // yields a finite but meaningless fit, so there is no NaN check to make -- the
+  // minimal path above needs one because Gaussian elimination does divide by a
+  // zero pivot. Such a fit simply scores poorly and loses to a better model.
   Eigen::Matrix<double, 8, 1> h = coefficients.colPivHouseholderQr().solve(inhomogeneous);
 
   models::Model model;
