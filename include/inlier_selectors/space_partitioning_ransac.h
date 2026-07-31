@@ -82,7 +82,8 @@ class SpacePartitioningRANSAC : public AbstractInlierSelector {
         offsetYSrc(0.0),
         scaleDst(1.0),
         offsetXDst(0.0),
-        offsetYDst(0.0) {}
+        offsetYDst(0.0),
+        neighborhoodGraph(nullptr) {}
 
   ~SpacePartitioningRANSAC() {}
 
