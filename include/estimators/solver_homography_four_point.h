@@ -38,50 +38,48 @@
 #include "../utils/types.h"
 #include "abstract_solver.h"
 
-namespace superansac {
-namespace estimator {
-namespace solver {
+namespace superansac::estimator::solver {
 // Solver fitting a homography to four point correspondences (normalized DLT),
 // also used as the non-minimal least-squares fit. Returns a single solution.
 class HomographyFourPointSolver : public AbstractSolver {
  public:
-  HomographyFourPointSolver() {}
+  HomographyFourPointSolver() = default;
 
-  ~HomographyFourPointSolver() {}
+  ~HomographyFourPointSolver() override = default;
 
   // Determines if there is a chance of returning multiple models
   // the function 'estimateModel' is applied.
-  bool returnMultipleModels() const override { return maximumSolutions() > 1; }
+  [[nodiscard]] bool returnMultipleModels() const override { return maximumSolutions() > 1; }
 
   // The maximum number of solutions returned by the estimator
-  size_t maximumSolutions() const override { return 1; }
+  [[nodiscard]] size_t maximumSolutions() const override { return 1; }
 
   // The minimum number of points required for the estimation
-  size_t sampleSize() const override { return 4; }
+  [[nodiscard]] size_t sampleSize() const override { return 4; }
 
   // Estimate the model parameters from the given point sample
   // using weighted fitting if possible.
   FORCE_INLINE bool estimateModelImpl(
       const DataMatrix& kData_,                 // The set of data points
       const size_t* kSample_,                   // The sample used for the estimation
-      const size_t kSampleNumber_,              // The size of the sample
+      size_t kSampleNumber_,                    // The size of the sample
       std::vector<models::Model>& models_,      // The estimated model parameters
       const double* kWeights_) const override;  // The weight for each point
 
  protected:
-  FORCE_INLINE bool estimateNonMinimalModel(
+  static FORCE_INLINE bool estimateNonMinimalModel(
       const DataMatrix& kData_,             // The set of data points
       const size_t* kSample_,               // The sample used for the estimation
-      const size_t kSampleNumber_,          // The size of the sample
+      size_t kSampleNumber_,                // The size of the sample
       std::vector<models::Model>& models_,  // The estimated model parameters
-      const double* kWeights_) const;       // The weight for each point
+      const double* kWeights_);             // The weight for each point
 
-  FORCE_INLINE bool estimateMinimalModel(
+  static FORCE_INLINE bool estimateMinimalModel(
       const DataMatrix& kData_,             // The set of data points
       const size_t* kSample_,               // The sample used for the estimation
-      const size_t kSampleNumber_,          // The size of the sample
+      size_t kSampleNumber_,                // The size of the sample
       std::vector<models::Model>& models_,  // The estimated model parameters
-      const double* kWeights_) const;       // The weight for each point
+      const double* kWeights_);             // The weight for each point
 };
 
 FORCE_INLINE bool HomographyFourPointSolver::estimateMinimalModel(
@@ -89,19 +87,18 @@ FORCE_INLINE bool HomographyFourPointSolver::estimateMinimalModel(
     const size_t* kSample_,               // The sample used for the estimation
     const size_t kSampleNumber_,          // The size of the sample
     std::vector<models::Model>& models_,  // The estimated model parameters
-    const double* kWeights_) const        // The weight for each point
+    const double* kWeights_)              // The weight for each point
 {
-  constexpr size_t kEquationNumber = 2;
   Eigen::Matrix<double, 8, 9> coefficients;
   coefficients.setZero();  // Initialize the matrix with zeros
 
-  size_t rowIdx = 0;
+  int rowIdx = 0;
 
   // Remove branch from inner loop by handling weighted/unweighted separately
   if (kWeights_ == nullptr) {
     // Unweighted case - weight = 1.0, avoid unnecessary multiplications
-    for (size_t i = 0; i < kSampleNumber_; ++i) {
-      const size_t idx = kSample_ == nullptr ? i : kSample_[i];
+    for (int i = 0; i < kSampleNumber_; ++i) {
+      const int idx = static_cast<int>(kSample_ == nullptr ? i : kSample_[i]);
 
       const double &x1 = kData_(idx, 0), &y1 = kData_(idx, 1), &x2 = kData_(idx, 2),
                    &y2 = kData_(idx, 3);
@@ -130,8 +127,8 @@ FORCE_INLINE bool HomographyFourPointSolver::estimateMinimalModel(
     }
   } else {
     // Weighted case
-    for (size_t i = 0; i < kSampleNumber_; ++i) {
-      const size_t idx = kSample_ == nullptr ? i : kSample_[i];
+    for (int i = 0; i < kSampleNumber_; ++i) {
+      const int idx = static_cast<int>(kSample_ == nullptr ? i : kSample_[i]);
 
       const double &x1 = kData_(idx, 0), &y1 = kData_(idx, 1), &x2 = kData_(idx, 2),
                    &y2 = kData_(idx, 3);
@@ -186,24 +183,23 @@ FORCE_INLINE bool HomographyFourPointSolver::estimateNonMinimalModel(
     const size_t* kSample_,               // The sample used for the estimation
     const size_t kSampleNumber_,          // The size of the sample
     std::vector<models::Model>& models_,  // The estimated model parameters
-    const double* kWeights_) const        // The weight for each point
+    const double* kWeights_)              // The weight for each point
 {
-  constexpr size_t kEquationNumber = 2;
-  const size_t columns = kData_.cols();
-  const size_t kRowNumber = kEquationNumber * kSampleNumber_;
+  constexpr int kEquationNumber = 2;
+  const int kRowNumber = static_cast<int>(kEquationNumber * kSampleNumber_);
   // Thread-local scratch (this solver runs in the local-optimization
   // inner loops); fully overwritten below.
-  static thread_local DataMatrix coefficients;
-  static thread_local DataMatrix inhomogeneous;
+  thread_local DataMatrix coefficients;  // 对函数内的局部变量，thread_local 本身已经隐含静态存储期
+  thread_local DataMatrix inhomogeneous;
   coefficients.resize(kRowNumber, 8);
   inhomogeneous.resize(kRowNumber, 1);
   coefficients.setZero();  // Initialize the matrix with zeros
 
-  size_t rowIdx = 0;
+  int rowIdx = 0;
   double weight = 1.0;
 
-  for (size_t i = 0; i < kSampleNumber_; ++i) {
-    const size_t idx = kSample_ == nullptr ? i : kSample_[i];
+  for (int i = 0; i < kSampleNumber_; ++i) {
+    const int idx = static_cast<int>(kSample_ == nullptr ? i : kSample_[i]);
 
     const double &x1 = kData_(idx, 0), &y1 = kData_(idx, 1), &x2 = kData_(idx, 2),
                  &y2 = kData_(idx, 3);
@@ -254,6 +250,5 @@ FORCE_INLINE bool HomographyFourPointSolver::estimateModelImpl(
     return estimateMinimalModel(kData_, kSample_, kSampleNumber_, models_, kWeights_);
   return estimateNonMinimalModel(kData_, kSample_, kSampleNumber_, models_, kWeights_);
 }
-}  // namespace solver
-}  // namespace estimator
-}  // namespace superansac
+
+}  // namespace superansac::estimator::solver
