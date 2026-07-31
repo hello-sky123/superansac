@@ -41,25 +41,24 @@
 #include "../utils/macros.h"
 #include "../utils/types.h"
 
-namespace superansac {
-namespace estimator {
-namespace solver {
-// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
+namespace superansac::estimator::solver {
+// Base class for the minimal and non-minimal solvers. A solver only fits a model
+// to a point sample; the residual is computed by the Estimator that owns it.
 class AbstractSolver {
  public:
-  AbstractSolver() {}
+  AbstractSolver() = default;
 
-  ~AbstractSolver() {}
+  virtual ~AbstractSolver() = default;
 
   // Determines if there is a chance of returning multiple models
   // the function 'estimateModel' is applied.
-  virtual bool returnMultipleModels() const { return maximumSolutions() > 1; }
+  [[nodiscard]] virtual bool returnMultipleModels() const { return maximumSolutions() > 1; }
 
   // The maximum number of solutions returned by the estimator
-  virtual size_t maximumSolutions() const { return 1; }
+  [[nodiscard]] virtual size_t maximumSolutions() const { return 1; }
 
   // The minimum number of points required for the estimation
-  virtual size_t sampleSize() const { return 0; }
+  [[nodiscard]] virtual size_t sampleSize() const { return 0; }
 
   // Estimate the model parameters from the given point sample
   // using weighted fitting if possible.
@@ -79,10 +78,9 @@ class AbstractSolver {
   // supplied by the non-virtual wrapper above, so the default cannot drift
   // between the base and derived declarations.
   virtual FORCE_INLINE bool estimateModelImpl(const DataMatrix& kData_, const size_t* kSample_,
-                                              const size_t kSampleNumber_,
+                                              size_t kSampleNumber_,
                                               std::vector<models::Model>& models_,
                                               const double* kWeights_) const = 0;
 };
-}  // namespace solver
-}  // namespace estimator
-}  // namespace superansac
+
+}  // namespace superansac::estimator::solver

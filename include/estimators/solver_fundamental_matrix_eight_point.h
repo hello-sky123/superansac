@@ -41,7 +41,8 @@
 namespace superansac {
 namespace estimator {
 namespace solver {
-// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
+// Solver fitting a fundamental matrix to eight or more point correspondences
+// (linear eight-point algorithm). Returns a single solution.
 class FundamentalMatrixEightPointSolver : public AbstractSolver {
  public:
   FundamentalMatrixEightPointSolver() {}

@@ -35,8 +35,6 @@
 
 #include <Eigen/Core>
 
-#include <cmath>
-#include <iostream>
 #include <memory>
 #include <vector>
 
@@ -45,8 +43,7 @@
 #include "../utils/types.h"
 #include "abstract_solver.h"
 
-namespace superansac {
-namespace estimator {
+namespace superansac::estimator {
 // Templated class for estimating a model for RANSAC. This class is purely a
 // virtual class and should be implemented for the specific task that RANSAC is
 // being used for. Two methods must be implemented: estimateModel and residual. All
@@ -61,20 +58,28 @@ class Estimator {
   std::unique_ptr<solver::AbstractSolver> nonMinimalSolver;
 
  public:
-  Estimator() {}
-  virtual ~Estimator() {}
+  Estimator() = default;
+  virtual ~Estimator() = default;
 
   // Return the minimal solver
-  const solver::AbstractSolver* getMinimalSolver() const { return minimalSolver.get(); }
+  [[nodiscard]] const solver::AbstractSolver* getMinimalSolver() const {
+    return minimalSolver.get();
+  }
 
   // Return a mutable minimal solver
-  solver::AbstractSolver* getMutableMinimalSolver() { return minimalSolver.get(); }
+  [[nodiscard]] solver::AbstractSolver* getMutableMinimalSolver() const {
+    return minimalSolver.get();
+  }
 
-  // Return the minimal solver
-  const solver::AbstractSolver* getNonMinimalSolver() const { return nonMinimalSolver.get(); }
+  // Return the non-minimal solver
+  [[nodiscard]] const solver::AbstractSolver* getNonMinimalSolver() const {
+    return nonMinimalSolver.get();
+  }
 
-  // Return a mutable minimal solver
-  solver::AbstractSolver* getMutableNonMinimalSolver() { return nonMinimalSolver.get(); }
+  // Return a mutable non-minimal solver
+  [[nodiscard]] solver::AbstractSolver* getMutableNonMinimalSolver() const {
+    return nonMinimalSolver.get();
+  }
 
   // Set the minimal solver
   void setMinimalSolver(solver::AbstractSolver* minimalSolver_) {
@@ -87,28 +92,28 @@ class Estimator {
   }
 
   // The size of a non-minimal sample required for the estimation
-  size_t nonMinimalSampleSize() const { return nonMinimalSolver->sampleSize(); }
+  [[nodiscard]] size_t nonMinimalSampleSize() const { return nonMinimalSolver->sampleSize(); }
 
   // The size of a minimal sample required for the estimation
-  size_t sampleSize() const { return minimalSolver->sampleSize(); }
+  [[nodiscard]] size_t sampleSize() const { return minimalSolver->sampleSize(); }
 
   // A flag deciding if the points can be weighted when the non-minimal fitting is applied
-  virtual bool isWeightingApplicable() const = 0;
+  [[nodiscard]] virtual bool isWeightingApplicable() const = 0;
 
   // The size of a minimal sample_ required for the estimation
-  size_t maximumMinimalSolutions() const { return minimalSolver->maximumSolutions(); }
+  [[nodiscard]] size_t maximumMinimalSolutions() const { return minimalSolver->maximumSolutions(); }
 
   // Mult error for the AC-RANSAC scoring
-  virtual double multError() const = 0;
+  [[nodiscard]] virtual double multError() const = 0;
   // Log Alpha 0 for the AC-RANSAC scoring. Not virtual: every estimator used
   // the same area-normalisation formula, so the five identical overrides were
   // deleted in favour of this one definition. A default argument on a virtual
   // also binds statically, which is what google-default-arguments warns about.
-  double logAlpha0(size_t w, size_t h, double scalingFactor = 0.5) const {
-    return std::log(1.0 / (w * h * scalingFactor));
+  static double logAlpha0(const size_t w, const size_t h, const double scalingFactor = 0.5) {
+    return std::log(1.0 / (static_cast<double>(w * h) * scalingFactor));
   }
   // Degrees of freedom for the MAGSAC++ scoring
-  virtual size_t getDegreesOfFreedom() const = 0;
+  [[nodiscard]] virtual size_t getDegreesOfFreedom() const = 0;
 
   // Given a set of data points, estimate the model. Users should implement this
   // function appropriately for the task being solved. Returns true for
@@ -176,7 +181,9 @@ class Estimator {
 
   // Enable a quick check to see if the model is valid. This can be a geometric
   // check or some other verification of the model structure.
-  FORCE_INLINE virtual bool isValidModel(const models::Model& kModel_) const { return true; }
+  [[nodiscard]] FORCE_INLINE virtual bool isValidModel(const models::Model& kModel_) const {
+    return true;
+  }
 
   // Enable a quick check to see if the model is valid. This can be a geometric
   // check or some other verification of the model structure.
@@ -201,5 +208,5 @@ class Estimator {
       std::vector<models::Model>* model_,  // The estimated model parameters
       const double* kWeights_) const = 0;  // The weights of the points
 };
-}  // namespace estimator
-}  // namespace superansac
+
+}  // namespace superansac::estimator

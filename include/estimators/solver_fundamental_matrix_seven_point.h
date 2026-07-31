@@ -43,7 +43,8 @@
 namespace superansac {
 namespace estimator {
 namespace solver {
-// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
+// Solver fitting a fundamental matrix to seven point correspondences. The rank-2
+// constraint leaves a cubic to solve, so it returns up to three solutions.
 class FundamentalMatrixSevenPointSolver : public AbstractSolver {
  public:
   FundamentalMatrixSevenPointSolver() {}

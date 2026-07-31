@@ -38,19 +38,16 @@
 #include <Eigen/Eigen>
 
 #include <cmath>
-#include <math.h>
-#include <random>
-#include <vector>
 
 #include "../models/model.h"
 #include "../utils/types.h"
 #include "abstract_estimator.h"
 #include "numerical_optimizer/bundle.h"
-#include "solver_homography_four_point.h"
 
-namespace superansac {
-namespace estimator {
-// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
+namespace superansac::estimator {
+// Estimator for a homography between two images. Implements model estimation and
+// the squared forward transfer error (the source point is mapped through H and
+// compared with the destination point), plus an optional nonlinear refit.
 class HomographyEstimator : public Estimator {
  protected:
   // Optional nonlinear (LM) refinement of the non-minimal homography
@@ -62,8 +59,8 @@ class HomographyEstimator : public Estimator {
   size_t bundleMaxIterations = 100;  // LM iterations for the refinement
 
  public:
-  HomographyEstimator() {}
-  ~HomographyEstimator() {}
+  HomographyEstimator() = default;
+  ~HomographyEstimator() override = default;
 
   void setBundleRefinement(const bool kEnabled_, const double kLossScale_,
                            const size_t kMaxIterations_ = 100) {
@@ -73,12 +70,12 @@ class HomographyEstimator : public Estimator {
   }
 
   // A flag deciding if the points can be weighted when the non-minimal fitting is applied
-  bool isWeightingApplicable() const override { return true; }
+  [[nodiscard]] bool isWeightingApplicable() const override { return true; }
 
-  double multError() const { return 1.0; }
+  [[nodiscard]] double multError() const override { return 1.0; }
 
   // Degrees of freedom for the MAGSAC++ scoring
-  size_t getDegreesOfFreedom() const { return 2; }
+  [[nodiscard]] size_t getDegreesOfFreedom() const override { return 2; }
 
   // Estimating the model from a minimal sample
   FORCE_INLINE bool estimateModel(
@@ -395,5 +392,4 @@ class HomographyEstimator : public Estimator {
     return true;
   }
 };
-}  // namespace estimator
-}  // namespace superansac
+}  // namespace superansac::estimator

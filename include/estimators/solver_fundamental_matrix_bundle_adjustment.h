@@ -44,7 +44,8 @@
 namespace superansac {
 namespace estimator {
 namespace solver {
-// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
+// Non-minimal solver refining a fundamental matrix over eight or more
+// correspondences by nonlinear least squares. Returns a single solution.
 class FundamentalMatrixBundleAdjustmentSolver : public AbstractSolver {
  protected:
   poselib::BundleOptions options;

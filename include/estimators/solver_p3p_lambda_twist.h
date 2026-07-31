@@ -41,7 +41,8 @@
 namespace superansac {
 namespace estimator {
 namespace solver {
-// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
+// Solver computing the absolute pose from three 2D-3D correspondences using the
+// lambda-twist P3P formulation. Returns up to four solutions.
 class P3PLambdaTwistSolver : public AbstractSolver {
  public:
   P3PLambdaTwistSolver() {}

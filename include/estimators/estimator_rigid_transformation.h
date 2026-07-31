@@ -50,7 +50,8 @@
 
 namespace superansac {
 namespace estimator {
-// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
+// Estimator for a rigid transformation between two 3D point sets. Implements
+// model estimation and the squared Euclidean alignment error.
 class RigidTransformationEstimator : public Estimator {
  public:
   RigidTransformationEstimator() {}

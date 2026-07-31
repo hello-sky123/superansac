@@ -40,7 +40,8 @@
 namespace superansac {
 namespace estimator {
 namespace solver {
-// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
+// Solver fitting a rigid transformation to three or more 3D-3D correspondences
+// via the orthogonal Procrustes problem. Returns a single solution.
 class RigidTransformProscrutesSolver : public AbstractSolver {
  public:
   RigidTransformProscrutesSolver() {}

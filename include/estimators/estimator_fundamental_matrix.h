@@ -50,7 +50,9 @@
 
 namespace superansac {
 namespace estimator {
-// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
+// Estimator for the fundamental matrix between two images. Implements model
+// estimation and the Sampson error, plus the oriented-epipolar and symmetric
+// epipolar checks used to reject degenerate seven-point fits.
 class FundamentalMatrixEstimator : public Estimator {
  protected:
   // Whether minimal models violating the oriented epipolar constraint

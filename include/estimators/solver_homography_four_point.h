@@ -41,7 +41,8 @@
 namespace superansac {
 namespace estimator {
 namespace solver {
-// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
+// Solver fitting a homography to four point correspondences (normalized DLT),
+// also used as the non-minimal least-squares fit. Returns a single solution.
 class HomographyFourPointSolver : public AbstractSolver {
  public:
   HomographyFourPointSolver() {}

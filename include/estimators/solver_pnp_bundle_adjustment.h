@@ -47,7 +47,8 @@
 namespace superansac {
 namespace estimator {
 namespace solver {
-// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
+// Non-minimal solver refining an absolute pose from 2D-3D correspondences by
+// nonlinear least squares over the reprojection error. Returns one solution.
 class PnPBundleAdjustmentSolver : public AbstractSolver {
  protected:
   poselib::BundleOptions options;

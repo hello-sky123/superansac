@@ -68,28 +68,27 @@ class GAUScoring : public AbstractScoring {
             const bool kStoreInliers_, const Score& kBestScore_,
             std::vector<const std::vector<size_t>*>* kPotentialInlierSets_) const override {
     // Create a static empty Score
-    static const Score kEmptyScore;
+    // static const Score kEmptyScore;
     // The number of points
-    const int kPointNumber = kData_.rows();
-    // The squared residual
-    double squaredResidual;
+    const size_t kPointNumber = kData_.rows();
     // Score and inlier number
-    int inlierNumber = 0;
+    size_t inlierNumber = 0;
     double scoreValue = 0.0;
     // The score of the previous best model
-    const double kBestInlierNumber = kBestScore_.getInlierNumber();
+    // const double kBestInlierNumber = kBestScore_.getInlierNumber();
 
     // Iterate through all points in blocks: residuals for each block are
     // computed with one batched virtual call, then consumed by the unchanged
     // sequential logic (identical decisions/arithmetic).
-    constexpr int kBlockSize = 256;
+    constexpr size_t kBlockSize = 256;
     double sqrBuffer[kBlockSize];
-    for (int base = 0; base < kPointNumber; base += kBlockSize) {
-      const int kCount = std::min(kBlockSize, kPointNumber - base);
+    for (size_t base = 0; base < kPointNumber; base += kBlockSize) {
+      const size_t kCount = std::min(kBlockSize, kPointNumber - base);
       kEstimator_->squaredResiduals(kData_, kModel_, base, kCount, sqrBuffer);
-      for (int j = 0; j < kCount; ++j) {
-        const int pointIdx = base + j;
-        squaredResidual = sqrBuffer[j];
+      for (size_t j = 0; j < kCount; ++j) {
+        const size_t pointIdx = base + j;
+        // The squared residual
+        double squaredResidual = sqrBuffer[j];
 
         // If the residual is smaller than the threshold, store it as an inlier and
         // increase the score.
@@ -111,7 +110,7 @@ class GAUScoring : public AbstractScoring {
       }
     }
 
-    return Score(inlierNumber, scoreValue);
+    return {inlierNumber, scoreValue};
   }
 
   // Get weights for the points

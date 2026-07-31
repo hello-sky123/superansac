@@ -49,7 +49,8 @@
 
 namespace superansac {
 namespace estimator {
-// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
+// Estimator for the absolute camera pose from 2D-3D correspondences. Implements
+// model estimation and the squared reprojection error.
 class AbsolutePoseEstimator : public Estimator {
  public:
   AbsolutePoseEstimator() {}

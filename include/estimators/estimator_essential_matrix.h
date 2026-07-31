@@ -50,7 +50,8 @@
 
 namespace superansac {
 namespace estimator {
-// This is the estimator class for estimating a homography matrix between two images. A model estimation method and error calculation method are implemented
+// Estimator for the essential matrix between two calibrated images. Implements
+// model estimation and the squared Sampson error.
 class EssentialMatrixEstimator : public Estimator {
  public:
   EssentialMatrixEstimator() {}
