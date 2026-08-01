@@ -33,6 +33,9 @@
 // Author: Daniel Barath (barath.daniel@sztaki.mta.hu)
 #pragma once
 
+#include <cmath>
+#include <limits>
+
 #include "../models/model.h"
 #include "../utils/math_utils.h"
 #include "../utils/types.h"

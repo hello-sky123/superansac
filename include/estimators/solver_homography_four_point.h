@@ -189,7 +189,7 @@ FORCE_INLINE bool HomographyFourPointSolver::estimateNonMinimalModel(
   const int kRowNumber = static_cast<int>(kEquationNumber * kSampleNumber_);
   // Thread-local scratch (this solver runs in the local-optimization
   // inner loops); fully overwritten below.
-  thread_local DataMatrix coefficients;  // 对函数内的局部变量，thread_local 本身已经隐含静态存储期
+  thread_local DataMatrix coefficients;  // thread_local 本身已经隐含静态存储期语义
   thread_local DataMatrix inhomogeneous;
   coefficients.resize(kRowNumber, 8);
   inhomogeneous.resize(kRowNumber, 1);

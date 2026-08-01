@@ -38,6 +38,7 @@
 #include <Eigen/Eigen>
 
 #include <cmath>
+#include <limits>
 
 #include "../models/model.h"
 #include "../utils/types.h"
@@ -102,8 +103,9 @@ class HomographyEstimator : public Estimator {
 
     // Thread-local scratch (used in the local-optimization inner loops);
     // fully overwritten by normalizePoints below.
-    static thread_local DataMatrix normalizedPoints;
-    normalizedPoints.resize(kSampleNumber_, kData_.cols());  // The normalized point coordinates
+    thread_local DataMatrix normalizedPoints;
+    normalizedPoints.resize(static_cast<long>(kSampleNumber_),
+                            kData_.cols());  // The normalized point coordinates
     Eigen::Matrix3d
         normalizingTransformSource,       // The normalizing transformations in the source image
         normalizingTransformDestination;  // The normalizing transformations in the destination image
@@ -230,17 +232,16 @@ class HomographyEstimator : public Estimator {
     for (size_t i = 0; i < kCount_; ++i, row += kCols) kOut_[i] = squaredResidual(row, kDescriptor);
   }
 
-  FORCE_INLINE bool normalizePoints(
+  static FORCE_INLINE bool normalizePoints(
       const DataMatrix& kData_,        // The data points
       const size_t* kSample_,          // The points to which the model will be fit
       const size_t& kSampleNumber_,    // The number of points
       DataMatrix& kNormalizedPoints_,  // The normalized point coordinates
-      Eigen::Matrix3d&
-          kNormalizingTransformSource_,  // The normalizing transformation in the first image
-      Eigen::Matrix3d& kNormalizingTransformDestination_)
-      const  // The normalizing transformation in the second image
-  {
-    const int& cols = kData_.cols();
+      Eigen::Matrix3d&                 // The normalizing transformation in the first image
+          kNormalizingTransformSource_,
+      Eigen::Matrix3d&  // The normalizing transformation in the second image
+          kNormalizingTransformDestination_) {
+    const long& cols = kData_.cols();
 
     double massPointSrc[2],  // Mass point in the first image
         massPointDst[2];     // Mass point in the second image
@@ -249,11 +250,11 @@ class HomographyEstimator : public Estimator {
     massPointSrc[0] = massPointSrc[1] = massPointDst[0] = massPointDst[1] = 0.0;
 
     // Calculating the mass points in both images
-    for (size_t i = 0; i < kSampleNumber_; ++i) {
+    for (int i = 0; i < kSampleNumber_; ++i) {
       // Get index of the current point. A null sample means "use the first
       // kSampleNumber_ rows of kData_ in order", matching the convention in
       // estimateModelNonminimal().
-      const size_t idx = kSample_ == nullptr ? i : kSample_[i];
+      const int idx = static_cast<int>(kSample_ == nullptr ? i : kSample_[i]);
 
       // Add the coordinates to that of the mass points
       massPointSrc[0] += kData_(idx, 0);
@@ -263,16 +264,16 @@ class HomographyEstimator : public Estimator {
     }
 
     // Get the average
-    massPointSrc[0] /= kSampleNumber_;
-    massPointSrc[1] /= kSampleNumber_;
-    massPointDst[0] /= kSampleNumber_;
-    massPointDst[1] /= kSampleNumber_;
+    massPointSrc[0] /= static_cast<double>(kSampleNumber_);
+    massPointSrc[1] /= static_cast<double>(kSampleNumber_);
+    massPointDst[0] /= static_cast<double>(kSampleNumber_);
+    massPointDst[1] /= static_cast<double>(kSampleNumber_);
 
     // Get the mean distance from the mass points
     double average_distance_src = 0.0, average_distance_dst = 0.0;
-    for (size_t i = 0; i < kSampleNumber_; ++i) {
+    for (int i = 0; i < kSampleNumber_; ++i) {
       // Get index of the current point
-      const size_t idx = kSample_ == nullptr ? i : kSample_[i];
+      const int idx = static_cast<int>(kSample_ == nullptr ? i : kSample_[i]);
 
       const double& x1 = kData_(idx, 0);
       const double& y1 = kData_(idx, 1);
@@ -288,17 +289,17 @@ class HomographyEstimator : public Estimator {
       average_distance_dst += sqrt(dx2 * dx2 + dy2 * dy2);
     }
 
-    average_distance_src /= kSampleNumber_;
-    average_distance_dst /= kSampleNumber_;
+    average_distance_src /= static_cast<double>(kSampleNumber_);
+    average_distance_dst /= static_cast<double>(kSampleNumber_);
 
     // Calculate the sqrt(2) / MeanDistance ratios
     const double ratioSrc = M_SQRT2 / average_distance_src;
     const double ratioDst = M_SQRT2 / average_distance_dst;
 
     // Compute the normalized coordinates
-    for (size_t i = 0; i < kSampleNumber_; ++i) {
+    for (int i = 0; i < kSampleNumber_; ++i) {
       // Get index of the current point
-      const size_t idx = kSample_ == nullptr ? i : kSample_[i];
+      const int idx = static_cast<int>(kSample_ == nullptr ? i : kSample_[i]);
 
       const double& x1 = kData_(idx, 0);
       const double& y1 = kData_(idx, 1);
@@ -310,7 +311,7 @@ class HomographyEstimator : public Estimator {
       kNormalizedPoints_(i, 2) = (x2 - massPointDst[0]) * ratioDst;
       kNormalizedPoints_(i, 3) = (y2 - massPointDst[1]) * ratioDst;
 
-      for (size_t i = 4; i < cols; ++i) kNormalizedPoints_(idx, i) = kData_(idx, i);
+      for (int j = 4; j < cols; ++j) kNormalizedPoints_(idx, j) = kData_(idx, j);
     }
 
     // Creating the normalizing transformations
