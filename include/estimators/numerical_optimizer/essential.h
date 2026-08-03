@@ -29,32 +29,34 @@
 #ifndef POSELIB_MISC_ESSENTIAL_H_
 #define POSELIB_MISC_ESSENTIAL_H_
 
-#include "camera_pose.h"
-
 #include <Eigen/Dense>
+
 #include <vector>
+
+#include "camera_pose.h"
 
 namespace poselib {
 
 // Computes the essential matrix from the camera motion
-void essential_from_motion(const CameraPose &pose, Eigen::Matrix3d *E);
+void essential_from_motion(const CameraPose& pose, Eigen::Matrix3d* E);
 
 // Checks the cheirality of the point correspondences, i.e. that
 //    lambda_2 * x2 = R * ( lambda_1 * x1 ) + t
 // with lambda_1 and lambda_2 positive
-bool check_cheirality(const CameraPose &pose, const Eigen::Vector3d &x1, const Eigen::Vector3d &x2,
+bool check_cheirality(const CameraPose& pose, const Eigen::Vector3d& x1, const Eigen::Vector3d& x2,
                       double min_depth = 0.0);
 // Corresponding generalized version
-bool check_cheirality(const CameraPose &pose, const Eigen::Vector3d &p1, const Eigen::Vector3d &x1,
-                      const Eigen::Vector3d &p2, const Eigen::Vector3d &x2, double min_depth = 0.0);
+bool check_cheirality(const CameraPose& pose, const Eigen::Vector3d& p1, const Eigen::Vector3d& x1,
+                      const Eigen::Vector3d& p2, const Eigen::Vector3d& x2, double min_depth = 0.0);
 
 // wrappers for vectors
-bool check_cheirality(const CameraPose &pose, const std::vector<Eigen::Vector3d> &x1,
-                      const std::vector<Eigen::Vector3d> &x2, double min_depth = 0.0);
+bool check_cheirality(const CameraPose& pose, const std::vector<Eigen::Vector3d>& x1,
+                      const std::vector<Eigen::Vector3d>& x2, double min_depth = 0.0);
 // Corresponding generalized version
-bool check_cheirality(const CameraPose &pose, const std::vector<Eigen::Vector3d> &p1,
-                      const std::vector<Eigen::Vector3d> &x1, const std::vector<Eigen::Vector3d> &p2,
-                      const std::vector<Eigen::Vector3d> &x2, double min_depth = 0.0);
+bool check_cheirality(const CameraPose& pose, const std::vector<Eigen::Vector3d>& p1,
+                      const std::vector<Eigen::Vector3d>& x1,
+                      const std::vector<Eigen::Vector3d>& p2,
+                      const std::vector<Eigen::Vector3d>& x2, double min_depth = 0.0);
 
 /**
  * @brief Given an essential matrix computes the 2 rotations and the 2 translations. The method also takes one point
@@ -64,16 +66,18 @@ bool check_cheirality(const CameraPose &pose, const std::vector<Eigen::Vector3d>
  * @ref Multiple View Geometry - Richard Hartley, Andrew Zisserman - second edition
  * @see HZ 9.7 page 259 (Result 9.19)
  */
-void motion_from_essential_svd(const Eigen::Matrix3d &E, const std::vector<Eigen::Vector3d> &x1,
-                               const std::vector<Eigen::Vector3d> &x2, CameraPoseVector *relative_poses);
+void motion_from_essential_svd(const Eigen::Matrix3d& E, const std::vector<Eigen::Vector3d>& x1,
+                               const std::vector<Eigen::Vector3d>& x2,
+                               CameraPoseVector* relative_poses);
 
 /*
 Computes the factorization using the closed-form SVD suggested in
    Nister, An Efficient Solution to the Five-Point Relative Pose Problem, PAMI 2004
 The method also takes one point correspondence that is used to filter for cheirality.
 */
-void motion_from_essential(const Eigen::Matrix3d &E, const std::vector<Eigen::Vector3d> &x1,
-                           const std::vector<Eigen::Vector3d> &x2, CameraPoseVector *relative_poses);
+void motion_from_essential(const Eigen::Matrix3d& E, const std::vector<Eigen::Vector3d>& x1,
+                           const std::vector<Eigen::Vector3d>& x2,
+                           CameraPoseVector* relative_poses);
 
 /*
 Factorizes the essential matrix into the relative poses. Assumes that the essential matrix corresponds to
@@ -95,9 +99,10 @@ which is not returned!
 The method also takes one point correspondence that is used to filter for cheirality.
 */
 void motion_from_essential_planar(double e01, double e21, double e10, double e12,
-                                  const std::vector<Eigen::Vector3d> &x1, const std::vector<Eigen::Vector3d> &x2,
-                                  CameraPoseVector *relative_poses);
+                                  const std::vector<Eigen::Vector3d>& x1,
+                                  const std::vector<Eigen::Vector3d>& x2,
+                                  CameraPoseVector* relative_poses);
 
-} // namespace poselib
+}  // namespace poselib
 
 #endif

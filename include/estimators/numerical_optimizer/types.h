@@ -29,67 +29,69 @@
 #ifndef POSELIB_ROBUST_TYPES_H_
 #define POSELIB_ROBUST_TYPES_H_
 
-#include "alignment.h"
-
 #include <Eigen/Dense>
+
+#include <utility>
 #include <vector>
+
+#include "alignment.h"
 
 namespace poselib {
 
 struct RansacOptions {
-    size_t max_iterations = 100000;
-    size_t min_iterations = 1000;
-    double dyn_num_trials_mult = 3.0;
-    double success_prob = 0.9999;
-    double max_reproj_error = 12.0;  // used for 2D-3D matches
-    double max_epipolar_error = 1.0; // used for 2D-2D matches
-    unsigned long seed = 0;
-    // If we should use PROSAC sampling. Assumes data is sorted
-    bool progressive_sampling = false;
-    size_t max_prosac_iterations = 100000;
-    // Whether we should use real focal length checking: https://arxiv.org/abs/2311.16304
-    // Assumes that principal points of both cameras are at origin.
-    bool real_focal_check = false;
+  size_t max_iterations = 100000;
+  size_t min_iterations = 1000;
+  double dyn_num_trials_mult = 3.0;
+  double success_prob = 0.9999;
+  double max_reproj_error = 12.0;   // used for 2D-3D matches
+  double max_epipolar_error = 1.0;  // used for 2D-2D matches
+  unsigned long seed = 0;
+  // If we should use PROSAC sampling. Assumes data is sorted
+  bool progressive_sampling = false;
+  size_t max_prosac_iterations = 100000;
+  // Whether we should use real focal length checking: https://arxiv.org/abs/2311.16304
+  // Assumes that principal points of both cameras are at origin.
+  bool real_focal_check = false;
 };
 
 struct RansacStats {
-    size_t refinements = 0;
-    size_t iterations = 0;
-    size_t num_inliers = 0;
-    double inlier_ratio = 0;
-    double model_score = std::numeric_limits<double>::max();
+  size_t refinements = 0;
+  size_t iterations = 0;
+  size_t num_inliers = 0;
+  double inlier_ratio = 0;
+  double model_score = std::numeric_limits<double>::max();
 };
 
 struct BundleOptions {
-    size_t max_iterations = 100;
-    enum LossType {
-        TRIVIAL,
-        TRUNCATED,
-        HUBER,
-        CAUCHY,
-        // This is the TR-IRLS scheme from Le and Zach, 3DV 2021
-        TRUNCATED_LE_ZACH,
-        // This is the MAGSAC++ scheme from Barath et al., CVPR 2021
-        MAGSACPlusPlus
-    } loss_type = LossType::TRUNCATED_LE_ZACH;
-    double loss_scale = 1.0;
-    double gradient_tol = 1e-10;
-    double cost_tol = 1e-8;
-    double step_tol = 1e-8;
-    double initial_lambda = 1e-3;
-    double min_lambda = 1e-10;
-    double max_lambda = 1e10;
-    bool verbose = false;
+  size_t max_iterations = 100;
+  enum class LossType {
+    TRIVIAL,
+    TRUNCATED,
+    HUBER,
+    CAUCHY,
+    // This is the TR-IRLS scheme from Le and Zach, 3DV 2021
+    TRUNCATED_LE_ZACH,
+    // This is the MAGSAC++ scheme from Barath et al., CVPR 2021
+    MAGSACPlusPlus
+  } loss_type = LossType::TRUNCATED_LE_ZACH;
+  double loss_scale = 1.0;
+  double gradient_tol = 1e-10;
+  double cost_tol = 1e-8;
+  double step_tol = 1e-8;
+  double initial_lambda = 1e-3;
+  double min_lambda = 1e-10;
+  double max_lambda = 1e10;
+  bool verbose = false;
 };
 
 struct BundleStats {
-    size_t iterations = 0;
-    double initial_cost = std::numeric_limits<double>::max();
-    double cost = std::numeric_limits<double>::max();
-    double lambda = 0.0;
-    size_t invalid_steps = 0;
-    double step_norm = 0.0;
-    double grad_norm = 0.0;
+  size_t iterations = 0;
+  double initial_cost = std::numeric_limits<double>::max();
+  double cost = std::numeric_limits<double>::max();
+  double lambda = 0.0;
+  size_t invalid_steps = 0;
+  double step_norm = 0.0;
+  double grad_norm = 0.0;
 };
 
 typedef Eigen::Vector2d Point2D;
@@ -97,24 +99,24 @@ typedef Eigen::Vector3d Point3D;
 
 // Used to store pairwise matches for generalized pose estimation
 struct PairwiseMatches {
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    size_t cam_id1, cam_id2;
-    std::vector<Point2D> x1, x2;
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  size_t cam_id1, cam_id2;
+  std::vector<Point2D> x1, x2;
 };
 
 struct Line2D {
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    Line2D() {}
-    Line2D(const Eigen::Vector2d &e1, const Eigen::Vector2d &e2) : x1(e1), x2(e2) {}
-    Eigen::Vector2d x1, x2;
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  Line2D() = default;
+  Line2D(Eigen::Vector2d e1, Eigen::Vector2d e2) : x1(std::move(e1)), x2(std::move(e2)) {}
+  Eigen::Vector2d x1, x2;
 };
 struct Line3D {
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    Line3D() {}
-    Line3D(const Eigen::Vector3d &e1, const Eigen::Vector3d &e2) : X1(e1), X2(e2) {}
-    Eigen::Vector3d X1, X2;
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  Line3D() = default;
+  Line3D(Eigen::Vector3d e1, Eigen::Vector3d e2) : X1(std::move(e1)), X2(std::move(e2)) {}
+  Eigen::Vector3d X1, X2;
 };
 
-} // namespace poselib
+}  // namespace poselib
 
 #endif

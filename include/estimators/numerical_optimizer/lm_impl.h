@@ -44,73 +44,71 @@ namespace poselib {
     Check jacobian_impl.h for examples
 */
 
-typedef std::function<void(const BundleStats &stats)> IterationCallback;
+typedef std::function<void(const BundleStats& stats)> IterationCallback;
 template <typename Problem, typename Param = typename Problem::param_t>
-BundleStats lm_impl(Problem &problem, Param *parameters, const BundleOptions &opt,
-                    IterationCallback callback = nullptr)
-{
-    constexpr int n_params = Problem::num_params;
-    Eigen::Matrix<double, n_params, n_params> JtJ;
-    Eigen::Matrix<double, n_params, 1> Jtr;
-    Eigen::Matrix<double, n_params, 1> sol;
+BundleStats lm_impl(Problem& problem, Param* parameters, const BundleOptions& opt,
+                    IterationCallback callback = nullptr) {
+  constexpr int n_params = Problem::num_params;
+  Eigen::Matrix<double, n_params, n_params> JtJ;
+  Eigen::Matrix<double, n_params, 1> Jtr;
+  Eigen::Matrix<double, n_params, 1> sol;
 
-    // Initialize
-    BundleStats stats;
-    stats.cost = problem.residual(*parameters);
-    stats.initial_cost = stats.cost;
-    stats.grad_norm = -1;
-    stats.step_norm = -1;
-    stats.invalid_steps = 0;
-    stats.lambda = opt.initial_lambda;
+  // Initialize
+  BundleStats stats;
+  stats.cost = problem.residual(*parameters);
+  stats.initial_cost = stats.cost;
+  stats.grad_norm = -1;
+  stats.step_norm = -1;
+  stats.invalid_steps = 0;
+  stats.lambda = opt.initial_lambda;
 
-    // Pre-allocate to avoid repeated allocations
-    Param parameters_new;
+  // Pre-allocate to avoid repeated allocations
+  Param parameters_new;
 
-    bool recompute_jac = true;
-    for (stats.iterations = 0; stats.iterations < opt.max_iterations; ++stats.iterations) {
-        // We only recompute jacobian and residual vector if last step was successful
-        if (recompute_jac) {
-            JtJ.setZero();
-            Jtr.setZero();
-            problem.accumulate(*parameters, JtJ, Jtr);
-            stats.grad_norm = Jtr.norm();
-            if (stats.grad_norm < opt.gradient_tol) {
-                break;
-            }
-        }
-
-        for (int i = 0; i < n_params; ++i) {
-            JtJ(i, i) += stats.lambda;
-        }
-
-        sol = -JtJ.template selfadjointView<Eigen::Lower>().ldlt().solve(Jtr);
-
-        stats.step_norm = sol.squaredNorm();  // Use squared norm to avoid sqrt
-        if (stats.step_norm < opt.step_tol * opt.step_tol)  // Compare squared values
-            break;
-        stats.step_norm = std::sqrt(stats.step_norm);  // Compute actual norm only once
-
-        parameters_new = problem.step(sol, *parameters);
-
-        double cost_new = problem.residual(parameters_new);
-
-        if (cost_new < stats.cost) {
-            *parameters = parameters_new;
-            stats.lambda = std::max(opt.min_lambda, stats.lambda * 0.1);
-            stats.cost = cost_new;
-            recompute_jac = true;
-        } else {
-            stats.invalid_steps++;
-            for (int i = 0; i < n_params; ++i) {
-                JtJ(i, i) -= stats.lambda;
-            }
-            stats.lambda = std::min(opt.max_lambda, stats.lambda * 10.0);
-            recompute_jac = false;
-        }
-        if (callback != nullptr)
-            callback(stats);
+  bool recompute_jac = true;
+  for (stats.iterations = 0; stats.iterations < opt.max_iterations; ++stats.iterations) {
+    // We only recompute jacobian and residual vector if last step was successful
+    if (recompute_jac) {
+      JtJ.setZero();
+      Jtr.setZero();
+      problem.accumulate(*parameters, JtJ, Jtr);
+      stats.grad_norm = Jtr.norm();
+      if (stats.grad_norm < opt.gradient_tol) {
+        break;
+      }
     }
-    return stats;
+
+    for (int i = 0; i < n_params; ++i) {
+      JtJ(i, i) += stats.lambda;
+    }
+
+    sol = -JtJ.template selfadjointView<Eigen::Lower>().ldlt().solve(Jtr);
+
+    stats.step_norm = sol.squaredNorm();                // Use squared norm to avoid sqrt
+    if (stats.step_norm < opt.step_tol * opt.step_tol)  // Compare squared values
+      break;
+    stats.step_norm = std::sqrt(stats.step_norm);  // Compute actual norm only once
+
+    parameters_new = problem.step(sol, *parameters);
+
+    double cost_new = problem.residual(parameters_new);
+
+    if (cost_new < stats.cost) {
+      *parameters = parameters_new;
+      stats.lambda = std::max(opt.min_lambda, stats.lambda * 0.1);
+      stats.cost = cost_new;
+      recompute_jac = true;
+    } else {
+      stats.invalid_steps++;
+      for (int i = 0; i < n_params; ++i) {
+        JtJ(i, i) -= stats.lambda;
+      }
+      stats.lambda = std::min(opt.max_lambda, stats.lambda * 10.0);
+      recompute_jac = false;
+    }
+    if (callback != nullptr) callback(stats);
+  }
+  return stats;
 }
 
-} // namespace poselib
+}  // namespace poselib
