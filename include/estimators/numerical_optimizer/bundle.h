@@ -539,11 +539,13 @@ BundleStats refine_homography(const std::vector<Point2D>& x1, const std::vector<
                               Eigen::Matrix3d* H, const BundleOptions& opt,
                               const WeightType& weights) {
   switch (opt.loss_type) {
+// 定义宏 SWITCH_LOSS_FUNCTION_CASE
 #define SWITCH_LOSS_FUNCTION_CASE(LossFunction) \
   return refine_homography<WeightType, LossFunction>(x1, x2, H, opt, weights);
+    // 借助上面的宏定义展开宏
     SWITCH_LOSS_FUNCTIONS
     default:
-      return BundleStats();
+      return {};
   }
 #undef SWITCH_LOSS_FUNCTION_CASE
 }
@@ -554,9 +556,8 @@ inline BundleStats refine_homography(const std::vector<Point2D>& x1, const std::
                                      const std::vector<double>& weights) {
   if (weights.size() == x1.size()) {
     return refine_homography<std::vector<double>>(x1, x2, H, opt, weights);
-  } else {
-    return refine_homography<UniformWeightVector>(x1, x2, H, opt, UniformWeightVector());
   }
+  return refine_homography<UniformWeightVector>(x1, x2, H, opt, UniformWeightVector());
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
