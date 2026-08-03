@@ -174,11 +174,12 @@ FORCE_INLINE bool PnPBundleAdjustmentSolver::estimateModelImpl(
     // Decompose the essential matrix to camera poses
     poselib::CameraPose pose(R, t);
 
-    // Perform the bundle adjustment
-    poselib::BundleStats stats;
-
-    //if (kSample_ != nullptr)
-    poselib::bundle_adjust(points2d, points3d, &pose, tmpOptions);
+    // Perform the bundle adjustment. The returned stats must be captured: the
+    // cost drives the best-pose selection below, and a default-constructed
+    // BundleStats reports DBL_MAX, which never beats the initial bestCost, so
+    // no candidate was ever selected and models_ kept its unrefined entries.
+    const poselib::BundleStats stats =
+        poselib::bundle_adjust(points2d, points3d, &pose, tmpOptions);
     /*else
 					{
 						poselib::Camera dummyCamera;
