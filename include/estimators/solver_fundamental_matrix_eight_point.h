@@ -143,6 +143,14 @@ FORCE_INLINE bool FundamentalMatrixEightPointSolver::normalizePoints(
   const double average_distance_src = std::sqrt(sum_squared_dist_src / kSampleNumber_);
   const double average_distance_dst = std::sqrt(sum_squared_dist_dst / kSampleNumber_);
 
+  // A zero mean distance means every sampled point coincides with its mass
+  // point, so there is no scale to normalize by. Report the failure the caller
+  // already checks for: dividing by zero here makes the ratios below infinite
+  // and every normalized coordinate NaN, while still reporting success.
+  if (average_distance_src < std::numeric_limits<double>::epsilon() ||
+      average_distance_dst < std::numeric_limits<double>::epsilon())
+    return false;
+
   // Calculate the sqrt(2) / MeanDistance ratios
   const double ratioSrc = M_SQRT2 / average_distance_src;
   const double ratioDst = M_SQRT2 / average_distance_dst;
