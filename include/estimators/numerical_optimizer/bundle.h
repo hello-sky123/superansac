@@ -510,7 +510,7 @@ BundleStats refine_homography(const std::vector<Point2D> &x1, const std::vector<
 #undef SWITCH_LOSS_FUNCTION_CASE
 }
 
-// Entry point for fundamental matrix refinement
+// Entry point for homography matrix refinement
 BundleStats refine_homography(const std::vector<Point2D> &x1, const std::vector<Point2D> &x2, Eigen::Matrix3d *H,
                               const BundleOptions &opt, const std::vector<double> &weights) {
     if (weights.size() == x1.size()) {

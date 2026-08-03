@@ -33,8 +33,6 @@
 // Author: Daniel Barath (barath.daniel@sztaki.mta.hu)
 #pragma once
 
-#define _USE_MATH_DEFINES
-
 #include <Eigen/Eigen>
 
 #include <cmath>
@@ -121,12 +119,12 @@ class HomographyEstimator : public Estimator {
             normalizingTransformDestination))  // The normalizing transformation in the second image
       return false;
 
-    // The four point fundamental matrix fitting algorithm
+    // The four point homography matrix fitting algorithm
     if (!nonMinimalSolver->estimateModel(normalizedPoints, nullptr, kSampleNumber_, *models_,
                                          kWeights_))
       return false;
 
-    // Denormalizing the estimated fundamental matrices
+    // Denormalizing the estimated homography matrices
     const Eigen::Matrix3d kNormalizingTransformDestinationInverse =
         normalizingTransformDestination.inverse();
     for (auto& model : *models_)
@@ -138,15 +136,15 @@ class HomographyEstimator : public Estimator {
     // only minimizes algebraic error; this is the homography analog of
     // the bundle adjustment run for F/E.
     if (useBundleRefinement) {
-      static thread_local std::vector<Eigen::Vector2d> x1, x2;
-      static thread_local std::vector<double> weights;
+      thread_local std::vector<Eigen::Vector2d> x1, x2;
+      thread_local std::vector<double> weights;
       x1.resize(kSampleNumber_);
       x2.resize(kSampleNumber_);
       weights.clear();
       const bool kUseWeights = kWeights_ != nullptr;
       if (kUseWeights) weights.resize(kSampleNumber_);
-      for (size_t i = 0; i < kSampleNumber_; ++i) {
-        const size_t idx = kSample_ == nullptr ? i : kSample_[i];
+      for (int i = 0; i < kSampleNumber_; ++i) {
+        const int idx = static_cast<int>(kSample_ == nullptr ? i : kSample_[i]);
         x1[i] = Eigen::Vector2d(kData_(idx, 0), kData_(idx, 1));
         x2[i] = Eigen::Vector2d(kData_(idx, 2), kData_(idx, 3));
         if (kUseWeights) weights[i] = kWeights_[i];
