@@ -4,8 +4,8 @@
 # nanoflann (BSD) -- Marius Muja, David G. Lowe, Jose Luis Blanco
 include/neighborhood/nanoflann.hpp
 
-# PoseLib / COLMAP numerical optimizers -- Viktor Larsson
-include/estimators/numerical_optimizer/*
+# PoseLib -- Viktor Larsson. numerical_optimizer/ is formatted with the project
+# style (see the commit that did so); sturm.h stays excluded.
 include/utils/sturm.h
 
 # Graph-cut / max-flow -- Boykov, Kolmogorov, Veksler
