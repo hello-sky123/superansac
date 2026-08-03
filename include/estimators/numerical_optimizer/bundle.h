@@ -158,7 +158,7 @@ BundleStats bundle_adjust_1D_radial(const std::vector<Point2D>& x, const std::ve
 // Iteration callbacks (called after each LM iteration)
 
 // Callback which prints debug info from the iterations
-void print_iteration(const BundleStats& stats) {
+inline void print_iteration(const BundleStats& stats) {
   if (stats.iterations == 0) {
     std::cout << "initial_cost=" << stats.initial_cost << "\n";
   }
@@ -179,7 +179,7 @@ IterationCallback setup_callback(const BundleOptions& opt, LossFunction& loss_fn
 // For using the IRLS scheme proposed by Le and Zach 3DV2021, we have a callback
 // for each iteration which updates the mu parameter
 template <>
-IterationCallback setup_callback(const BundleOptions& opt, TruncatedLossLeZach& loss_fn) {
+inline IterationCallback setup_callback(const BundleOptions& opt, TruncatedLossLeZach& loss_fn) {
   if (opt.verbose) {
     return [&loss_fn](const BundleStats& stats) {
       print_iteration(stats);
@@ -194,9 +194,9 @@ IterationCallback setup_callback(const BundleOptions& opt, TruncatedLossLeZach& 
 // Absolute pose with points (PnP)
 
 // Interface for calibrated camera
-BundleStats bundle_adjust(const std::vector<Point2D>& x, const std::vector<Point3D>& X,
-                          CameraPose* pose, const BundleOptions& opt,
-                          const std::vector<double>& weights) {
+inline BundleStats bundle_adjust(const std::vector<Point2D>& x, const std::vector<Point3D>& X,
+                                 CameraPose* pose, const BundleOptions& opt,
+                                 const std::vector<double>& weights) {
   poselib::Camera camera;
   camera.model_id = NullCameraModel::model_id;
   return bundle_adjust(x, X, camera, pose, opt);
@@ -244,9 +244,9 @@ BundleStats bundle_adjust(const std::vector<Point2D>& x, const std::vector<Point
 }
 
 // Entry point for PnP refinement
-BundleStats bundle_adjust(const std::vector<Point2D>& x, const std::vector<Point3D>& X,
-                          const Camera& camera, CameraPose* pose, const BundleOptions& opt,
-                          const std::vector<double>& weights) {
+inline BundleStats bundle_adjust(const std::vector<Point2D>& x, const std::vector<Point3D>& X,
+                                 const Camera& camera, CameraPose* pose, const BundleOptions& opt,
+                                 const std::vector<double>& weights) {
   if (weights.size() == x.size()) {
     return bundle_adjust<std::vector<double>>(x, X, camera, pose, opt, weights);
   } else {
@@ -310,12 +310,13 @@ BundleStats bundle_adjust(const std::vector<Point2D>& points2D,
 }
 
 // Entry point for PnPL refinement
-BundleStats bundle_adjust(const std::vector<Point2D>& points2D,
-                          const std::vector<Point3D>& points3D, const std::vector<Line2D>& lines2D,
-                          const std::vector<Line3D>& lines3D, CameraPose* pose,
-                          const BundleOptions& opt, const BundleOptions& opt_line,
-                          const std::vector<double>& weights_pts,
-                          const std::vector<double>& weights_lines) {
+inline BundleStats bundle_adjust(const std::vector<Point2D>& points2D,
+                                 const std::vector<Point3D>& points3D,
+                                 const std::vector<Line2D>& lines2D,
+                                 const std::vector<Line3D>& lines3D, CameraPose* pose,
+                                 const BundleOptions& opt, const BundleOptions& opt_line,
+                                 const std::vector<double>& weights_pts,
+                                 const std::vector<double>& weights_lines) {
   bool have_pts_weights = weights_pts.size() == points2D.size();
   bool have_line_weights = weights_lines.size() == lines2D.size();
 
@@ -341,11 +342,11 @@ BundleStats bundle_adjust(const std::vector<Point2D>& points2D,
 // Generalized absolute pose with points (GPnP)
 
 // Interface for calibrated camera
-BundleStats generalized_bundle_adjust(const std::vector<std::vector<Point2D>>& x,
-                                      const std::vector<std::vector<Point3D>>& X,
-                                      const std::vector<CameraPose>& camera_ext, CameraPose* pose,
-                                      const BundleOptions& opt,
-                                      const std::vector<std::vector<double>>& weights) {
+inline BundleStats generalized_bundle_adjust(const std::vector<std::vector<Point2D>>& x,
+                                             const std::vector<std::vector<Point3D>>& X,
+                                             const std::vector<CameraPose>& camera_ext,
+                                             CameraPose* pose, const BundleOptions& opt,
+                                             const std::vector<std::vector<double>>& weights) {
   std::vector<Camera> dummy_cameras;
   dummy_cameras.resize(x.size());
   for (size_t k = 0; k < x.size(); ++k) {
@@ -385,12 +386,12 @@ BundleStats generalized_bundle_adjust(const std::vector<std::vector<Point2D>>& x
 }
 
 // Entry point for GPnP refinement
-BundleStats generalized_bundle_adjust(const std::vector<std::vector<Point2D>>& x,
-                                      const std::vector<std::vector<Point3D>>& X,
-                                      const std::vector<CameraPose>& camera_ext,
-                                      const std::vector<Camera>& cameras, CameraPose* pose,
-                                      const BundleOptions& opt,
-                                      const std::vector<std::vector<double>>& weights) {
+inline BundleStats generalized_bundle_adjust(const std::vector<std::vector<Point2D>>& x,
+                                             const std::vector<std::vector<Point3D>>& X,
+                                             const std::vector<CameraPose>& camera_ext,
+                                             const std::vector<Camera>& cameras, CameraPose* pose,
+                                             const BundleOptions& opt,
+                                             const std::vector<std::vector<double>>& weights) {
   if (weights.size() == x.size()) {
     return generalized_bundle_adjust<std::vector<std::vector<double>>>(x, X, camera_ext, cameras,
                                                                        pose, opt, weights);
@@ -426,9 +427,9 @@ BundleStats refine_relpose(const std::vector<Point2D>& x1, const std::vector<Poi
 }
 
 // Entry point for essential matrix refinement
-BundleStats refine_relpose(const std::vector<Point2D>& x1, const std::vector<Point2D>& x2,
-                           CameraPose* pose, const BundleOptions& opt,
-                           const std::vector<double>& weights) {
+inline BundleStats refine_relpose(const std::vector<Point2D>& x1, const std::vector<Point2D>& x2,
+                                  CameraPose* pose, const BundleOptions& opt,
+                                  const std::vector<double>& weights) {
   if (weights.size() == x1.size()) {
     return refine_relpose<std::vector<double>>(x1, x2, pose, opt, weights);
   } else {
@@ -465,10 +466,10 @@ BundleStats refine_shared_focal_relpose(const std::vector<Point2D>& x1,
 }
 
 // Entry point for essential matrix refinement
-BundleStats refine_shared_focal_relpose(const std::vector<Point2D>& x1,
-                                        const std::vector<Point2D>& x2, ImagePair* image_pair,
-                                        const BundleOptions& opt,
-                                        const std::vector<double>& weights) {
+inline BundleStats refine_shared_focal_relpose(const std::vector<Point2D>& x1,
+                                               const std::vector<Point2D>& x2,
+                                               ImagePair* image_pair, const BundleOptions& opt,
+                                               const std::vector<double>& weights) {
   if (weights.size() == x1.size()) {
     return refine_shared_focal_relpose<std::vector<double>>(x1, x2, image_pair, opt, weights);
   } else {
@@ -509,9 +510,10 @@ BundleStats refine_fundamental(const std::vector<Point2D>& x1, const std::vector
 }
 
 // Entry point for fundamental matrix refinement
-BundleStats refine_fundamental(const std::vector<Point2D>& x1, const std::vector<Point2D>& x2,
-                               Eigen::Matrix3d* F, const BundleOptions& opt,
-                               const std::vector<double>& weights) {
+inline BundleStats refine_fundamental(const std::vector<Point2D>& x1,
+                                      const std::vector<Point2D>& x2, Eigen::Matrix3d* F,
+                                      const BundleOptions& opt,
+                                      const std::vector<double>& weights) {
   if (weights.size() == x1.size()) {
     return refine_fundamental<std::vector<double>>(x1, x2, F, opt, weights);
   } else {
@@ -547,9 +549,9 @@ BundleStats refine_homography(const std::vector<Point2D>& x1, const std::vector<
 }
 
 // Entry point for homography matrix refinement
-BundleStats refine_homography(const std::vector<Point2D>& x1, const std::vector<Point2D>& x2,
-                              Eigen::Matrix3d* H, const BundleOptions& opt,
-                              const std::vector<double>& weights) {
+inline BundleStats refine_homography(const std::vector<Point2D>& x1, const std::vector<Point2D>& x2,
+                                     Eigen::Matrix3d* H, const BundleOptions& opt,
+                                     const std::vector<double>& weights) {
   if (weights.size() == x1.size()) {
     return refine_homography<std::vector<double>>(x1, x2, H, opt, weights);
   } else {
@@ -589,11 +591,11 @@ BundleStats refine_generalized_relpose(const std::vector<PairwiseMatches>& match
 }
 
 // Entry point for generalized relpose refinement
-BundleStats refine_generalized_relpose(const std::vector<PairwiseMatches>& matches,
-                                       const std::vector<CameraPose>& camera1_ext,
-                                       const std::vector<CameraPose>& camera2_ext, CameraPose* pose,
-                                       const BundleOptions& opt,
-                                       const std::vector<std::vector<double>>& weights) {
+inline BundleStats refine_generalized_relpose(const std::vector<PairwiseMatches>& matches,
+                                              const std::vector<CameraPose>& camera1_ext,
+                                              const std::vector<CameraPose>& camera2_ext,
+                                              CameraPose* pose, const BundleOptions& opt,
+                                              const std::vector<std::vector<double>>& weights) {
   if (weights.size() == matches.size()) {
     return refine_generalized_relpose<std::vector<std::vector<double>>>(
         matches, camera1_ext, camera2_ext, pose, opt, weights);
@@ -640,12 +642,12 @@ BundleStats refine_hybrid_pose(const std::vector<Point2D>& x, const std::vector<
 }
 
 // Entry point for hybrid pose refinement
-BundleStats refine_hybrid_pose(const std::vector<Point2D>& x, const std::vector<Point3D>& X,
-                               const std::vector<PairwiseMatches>& matches_2D_2D,
-                               const std::vector<CameraPose>& map_ext, CameraPose* pose,
-                               const BundleOptions& opt, double loss_scale_epipolar,
-                               const std::vector<double>& weights_abs,
-                               const std::vector<std::vector<double>>& weights_rel) {
+inline BundleStats refine_hybrid_pose(const std::vector<Point2D>& x, const std::vector<Point3D>& X,
+                                      const std::vector<PairwiseMatches>& matches_2D_2D,
+                                      const std::vector<CameraPose>& map_ext, CameraPose* pose,
+                                      const BundleOptions& opt, double loss_scale_epipolar,
+                                      const std::vector<double>& weights_abs,
+                                      const std::vector<std::vector<double>>& weights_rel) {
   bool have_abs_weights = weights_abs.size() == x.size();
   bool have_rel_weights = weights_rel.size() == matches_2D_2D.size();
 
@@ -695,9 +697,10 @@ BundleStats bundle_adjust_1D_radial(const std::vector<Point2D>& x, const std::ve
 }
 
 // Entry point for 1D radial absolute pose refinement (Assumes that the image points are centered)
-BundleStats bundle_adjust_1D_radial(const std::vector<Point2D>& x, const std::vector<Point3D>& X,
-                                    CameraPose* pose, const BundleOptions& opt,
-                                    const std::vector<double>& weights) {
+inline BundleStats bundle_adjust_1D_radial(const std::vector<Point2D>& x,
+                                           const std::vector<Point3D>& X, CameraPose* pose,
+                                           const BundleOptions& opt,
+                                           const std::vector<double>& weights) {
   if (weights.size() == x.size()) {
     return bundle_adjust_1D_radial<std::vector<double>>(x, X, pose, opt, weights);
   } else {
