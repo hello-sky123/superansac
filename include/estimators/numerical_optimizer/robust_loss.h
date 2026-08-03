@@ -34,17 +34,22 @@ namespace poselib {
 // Robust loss functions
 class TrivialLoss {
  public:
-  TrivialLoss(double) {}  // dummy to ensure we have consistent calling interface
-  TrivialLoss() {}
-  double loss(double r2) const { return r2; }
-  double weight(double r2) const { return 1.0; }
+  explicit TrivialLoss(double) {}  // dummy to ensure we have consistent calling interface
+
+  TrivialLoss() = default;
+
+  static double loss(const double r2) { return r2; }
+
+  static double weight(double) { return 1.0; }
 };
 
 class TruncatedLoss {
  public:
-  TruncatedLoss(double threshold) : squared_thr(threshold * threshold) {}
-  double loss(double r2) const { return std::min(r2, squared_thr); }
-  double weight(double r2) const { return (r2 < squared_thr) ? 1.0 : 0.0; }
+  explicit TruncatedLoss(const double threshold) : squared_thr(threshold * threshold) {}
+
+  [[nodiscard]] double loss(const double r2) const { return std::min(r2, squared_thr); }
+
+  [[nodiscard]] double weight(const double r2) const { return r2 < squared_thr ? 1.0 : 0.0; }
 
  private:
   const double squared_thr;
@@ -52,25 +57,27 @@ class TruncatedLoss {
 
 // The method from
 //  Le and Zach, Robust Fitting with Truncated Least Squares: A Bilevel Optimization Approach, 3DV 2021
-// for truncated least squares optimization with IRLS.
+// for truncated least squares optimization with IRLS. 保持了截断的思路，让权重保持连续（原本权重在阈值处不连续）
 class TruncatedLossLeZach {
  public:
-  TruncatedLossLeZach(double threshold) : squared_thr(threshold * threshold), mu(0.5) {}
-  double loss(double r2) const { return std::min(r2, squared_thr); }
-  double weight(double r2) const {
-    double r2_hat = r2 / squared_thr;
-    double zstar = std::min(r2_hat, 1.0);
+  explicit TruncatedLossLeZach(const double threshold)
+      : squared_thr(threshold * threshold), mu(0.5) {}
+
+  [[nodiscard]] double loss(const double r2) const { return std::min(r2, squared_thr); }
+
+  [[nodiscard]] double weight(const double r2) const {
+    const double r2_hat = r2 / squared_thr;
+    const double zstar = std::min(r2_hat, 1.0);
 
     if (r2_hat < 1.0) {
       return 0.5;
-    } else {
-      // assumes mu > 0.5
-      double r2m1 = r2_hat - 1.0;
-      double rho = (2.0 * r2m1 + std::sqrt(4.0 * r2m1 * r2m1 * mu * mu + 2 * mu * r2m1)) / mu;
-      double a = (r2_hat + mu * rho * zstar - 0.5 * rho) / (1 + mu * rho);
-      double zbar = std::max(0.0, std::min(a, 1.0));
-      return (zstar - zbar) / rho;
     }
+    // assumes mu > 0.5
+    const double r2m1 = r2_hat - 1.0;
+    const double rho = (2.0 * r2m1 + std::sqrt(4.0 * r2m1 * r2m1 * mu * mu + 2 * mu * r2m1)) / mu;
+    const double a = (r2_hat + mu * rho * zstar - 0.5 * rho) / (1 + mu * rho);
+    const double zbar = std::max(0.0, std::min(a, 1.0));
+    return (zstar - zbar) / rho;
   }
 
  private:
@@ -90,43 +97,47 @@ class MAGSACPlusPlusLoss {
  public:
   superansac::scoring::MAGSACScoring magsac_scoring;
 
-  MAGSACPlusPlusLoss(double threshold, const size_t degrees_of_freedom = 2) {
+  explicit MAGSACPlusPlusLoss(const double threshold, const size_t degrees_of_freedom = 2) {
     magsac_scoring.setThreshold(threshold);
     magsac_scoring.initialize(degrees_of_freedom);
   }
-  double loss(double r2) const { return magsac_scoring.getLoss(r2); }
 
-  double weight(double r2) const { return magsac_scoring.getWeight(r2); }
+  [[nodiscard]] double loss(const double r2) const { return magsac_scoring.getLoss(r2); }
+
+  [[nodiscard]] double weight(const double r2) const { return magsac_scoring.getWeight(r2); }
 };
 
 class HuberLoss {
  public:
-  HuberLoss(double threshold) : thr(threshold) {}
-  double loss(double r2) const {
+  explicit HuberLoss(const double threshold) : thr(threshold) {}
+
+  [[nodiscard]] double loss(const double r2) const {
     const double r = std::sqrt(r2);
     if (r <= thr) {
       return r2;
-    } else {
-      return thr * (2.0 * r - thr);
     }
+    return thr * (2.0 * r - thr);
   }
-  double weight(double r2) const {
+
+  [[nodiscard]] double weight(const double r2) const {
     const double r = std::sqrt(r2);
     if (r <= thr) {
       return 1.0;
-    } else {
-      return thr / r;
     }
+    return thr / r;
   }
 
  private:
   const double thr;
 };
+
 class CauchyLoss {
  public:
-  CauchyLoss(double threshold) : inv_sq_thr(1.0 / (threshold * threshold)) {}
-  double loss(double r2) const { return std::log1p(r2 * inv_sq_thr); }
-  double weight(double r2) const {
+  explicit CauchyLoss(const double threshold) : inv_sq_thr(1.0 / (threshold * threshold)) {}
+
+  [[nodiscard]] double loss(const double r2) const { return std::log1p(r2 * inv_sq_thr); }
+
+  [[nodiscard]] double weight(const double r2) const {
     return std::max(std::numeric_limits<double>::min(), inv_sq_thr / (1.0 + r2 * inv_sq_thr));
   }
 
