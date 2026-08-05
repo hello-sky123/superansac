@@ -160,24 +160,23 @@ BundleStats bundle_adjust_1D_radial(const std::vector<Point2D>& x, const std::ve
 // Callback which prints debug info from the iterations
 inline void print_iteration(const BundleStats& stats) {
   if (stats.iterations == 0) {
-    std::cout << "initial_cost=" << stats.initial_cost << "\n";
+    std::cout << "initial_cost = " << stats.initial_cost << "\n";
   }
-  std::cout << "iter=" << stats.iterations << ", cost=" << stats.cost
-            << ", step=" << stats.step_norm << ", grad=" << stats.grad_norm
-            << ", lambda=" << stats.lambda << "\n";
+  std::cout << "iter = " << stats.iterations << ", cost = " << stats.cost
+            << ", step = " << stats.step_norm << ", grad = " << stats.grad_norm
+            << ", lambda = " << stats.lambda << "\n";
 }
 
 template <typename LossFunction>
-IterationCallback setup_callback(const BundleOptions& opt, LossFunction& loss_fn) {
+IterationCallback setup_callback(const BundleOptions& opt, LossFunction&) {
   if (opt.verbose) {
     return print_iteration;
-  } else {
-    return nullptr;
   }
+  return nullptr;
 }
 
 // For using the IRLS scheme proposed by Le and Zach 3DV2021, we have a callback
-// for each iteration which updates the mu parameter
+// for each iteration which updates the mu parameter，显式特化
 template <>
 inline IterationCallback setup_callback(const BundleOptions& opt, TruncatedLossLeZach& loss_fn) {
   if (opt.verbose) {
@@ -185,9 +184,8 @@ inline IterationCallback setup_callback(const BundleOptions& opt, TruncatedLossL
       print_iteration(stats);
       loss_fn.mu *= TruncatedLossLeZach::alpha;
     };
-  } else {
-    return [&loss_fn](const BundleStats& stats) { loss_fn.mu *= TruncatedLossLeZach::alpha; };
   }
+  return [&loss_fn](const BundleStats&) { loss_fn.mu *= TruncatedLossLeZach::alpha; };
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
