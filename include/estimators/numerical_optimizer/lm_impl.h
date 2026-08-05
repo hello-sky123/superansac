@@ -45,9 +45,10 @@ namespace poselib {
 */
 
 typedef std::function<void(const BundleStats& stats)> IterationCallback;
+
 template <typename Problem, typename Param = typename Problem::param_t>
 BundleStats lm_impl(Problem& problem, Param* parameters, const BundleOptions& opt,
-                    IterationCallback callback = nullptr) {
+                    const IterationCallback& callback = nullptr) {
   constexpr int n_params = Problem::num_params;
   Eigen::Matrix<double, n_params, n_params> JtJ;
   Eigen::Matrix<double, n_params, 1> Jtr;
@@ -73,15 +74,18 @@ BundleStats lm_impl(Problem& problem, Param* parameters, const BundleOptions& op
       Jtr.setZero();
       problem.accumulate(*parameters, JtJ, Jtr);
       stats.grad_norm = Jtr.norm();
+      // 收敛出口 1
       if (stats.grad_norm < opt.gradient_tol) {
         break;
       }
     }
 
+    // lambda 加在对角线上
     for (int i = 0; i < n_params; ++i) {
       JtJ(i, i) += stats.lambda;
     }
 
+    // 对称的海森矩阵只存了下三角，然后使用对称矩阵分解 ldlt
     sol = -JtJ.template selfadjointView<Eigen::Lower>().ldlt().solve(Jtr);
 
     stats.step_norm = sol.squaredNorm();                // Use squared norm to avoid sqrt
@@ -101,7 +105,7 @@ BundleStats lm_impl(Problem& problem, Param* parameters, const BundleOptions& op
     } else {
       stats.invalid_steps++;
       for (int i = 0; i < n_params; ++i) {
-        JtJ(i, i) -= stats.lambda;
+        JtJ(i, i) -= stats.lambda;  // 撤销阻尼
       }
       stats.lambda = std::min(opt.max_lambda, stats.lambda * 10.0);
       recompute_jac = false;
