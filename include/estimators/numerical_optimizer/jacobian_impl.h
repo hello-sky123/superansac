@@ -1371,7 +1371,7 @@ class HomographyJacobianAccumulator {
                                 const ResidualWeightVector& w = ResidualWeightVector())
       : x1(points2D_1), x2(points2D_2), loss_fn(l), weights(w) {}
 
-  double residual(const Eigen::Matrix3d& H) const {
+  [[nodiscard]] double residual(const Eigen::Matrix3d& H) const {
     double cost = 0.0;
 
     const double H0_0 = H(0, 0), H0_1 = H(0, 1), H0_2 = H(0, 2);
@@ -1394,6 +1394,7 @@ class HomographyJacobianAccumulator {
     return cost;
   }
 
+  // 为 LM 的下一步组装正规方程
   size_t accumulate(const Eigen::Matrix3d& H, Eigen::Matrix<double, 8, 8>& JtJ,
                     Eigen::Matrix<double, 8, 1>& Jtr) {
     Eigen::Matrix<double, 2, 8> dH;
@@ -1422,14 +1423,16 @@ class HomographyJacobianAccumulator {
       if (weight == 0.0) continue;
       num_residuals++;
 
+      // 残差对 H 八个自由度的导数，按列排列单应矩阵的优化向量
       dH << x1_0, 0.0, -x1_0 * z0, x1_1, 0.0, -x1_1 * z0, 1.0, 0.0,  // -z0,
           0.0, x1_0, -x1_0 * z1, 0.0, x1_1, -x1_1 * z1, 0.0, 1.0;    // -z1,
       dH = dH * inv_Hx1_2;
 
       // accumulate into JtJ and Jtr
       Jtr += dH.transpose() * (weight * Eigen::Vector2d(r0, r1));
-      for (size_t i = 0; i < 8; ++i) {
-        for (size_t j = 0; j <= i; ++j) {
+      // 比矩阵乘法快，因为只算了下三角部分的 36 个点积，矩阵乘法需要 64，以及编译指令中的乘加融合也有贡献
+      for (int i = 0; i < 8; ++i) {
+        for (int j = 0; j <= i; ++j) {
           JtJ(i, j) += weight * dH.col(i).dot(dH.col(j));
         }
       }
@@ -1437,11 +1440,13 @@ class HomographyJacobianAccumulator {
     return num_residuals;
   }
 
-  Eigen::Matrix3d step(Eigen::Matrix<double, 8, 1> dp, const Eigen::Matrix3d& H) const {
+  // 将单应矩阵的更新叠加到原矩阵上
+  static Eigen::Matrix3d step(const Eigen::Matrix<double, 8, 1>& dp, const Eigen::Matrix3d& H) {
     Eigen::Matrix3d H_new = H;
-    Eigen::Map<Eigen::Matrix<double, 8, 1>>(H_new.data()) += dp;
+    Eigen::Map<Eigen::Matrix<double, 8, 1>>(H_new.data()) += dp;  // 默认按列主序存储
     return H_new;
   }
+
   typedef Eigen::Matrix3d param_t;
   static constexpr size_t num_params = 8;
 
