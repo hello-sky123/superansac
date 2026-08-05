@@ -76,7 +76,7 @@ class HomographyEstimator : public Estimator {
   // Degrees of freedom for the MAGSAC++ scoring
   [[nodiscard]] size_t getDegreesOfFreedom() const override { return 2; }
 
-  // Estimating the model from a minimal sample
+  // Estimating the model from a minimal sample，最小求解是适定的，且有部分选主元，所以不用归一化，归一化的价值在超定系统
   FORCE_INLINE bool estimateModel(
       const DataMatrix& kData_,                            // The data points
       const size_t* kSample_,                              // The sample usd for the estimation
@@ -171,7 +171,7 @@ class HomographyEstimator : public Estimator {
     return squaredResidual(point_, model_.getData());
   }
 
-  FORCE_INLINE double squaredResidual(const double* point_, const ModelMatrix& descriptor_) const {
+  static FORCE_INLINE double squaredResidual(const double* point_, const ModelMatrix& descriptor_) {
     // Use const references to avoid copying
     const double &x1 = point_[0], &y1 = point_[1], &x2 = point_[2], &y2 = point_[3];
 
@@ -193,28 +193,13 @@ class HomographyEstimator : public Estimator {
 
     // Return squared residual
     return d1 * d1 + d2 * d2;
-
-    /*const double 
-                    &x1 = point_(0),
-					&y1 = point_(1),
-					&x2 = point_(2),
-					&y2 = point_(3);
-
-				const double t1 = descriptor_(0, 0) * x1 + descriptor_(0, 1) * y1 + descriptor_(0, 2);
-				const double t2 = descriptor_(1, 0) * x1 + descriptor_(1, 1) * y1 + descriptor_(1, 2);
-				const double t3 = descriptor_(2, 0) * x1 + descriptor_(2, 1) * y1 + descriptor_(2, 2);
-
-				const double d1 = x2 - (t1 / t3);
-				const double d2 = y2 - (t2 / t3);
-
-				return d1 * d1 + d2 * d2;*/
   }
 
   FORCE_INLINE double residual(const double* point_, const models::Model& model_) const override {
     return residual(point_, model_.getData());
   }
 
-  FORCE_INLINE double residual(const double* point_, const ModelMatrix& descriptor_) const {
+  static FORCE_INLINE double residual(const double* point_, const ModelMatrix& descriptor_) {
     return sqrt(squaredResidual(point_, descriptor_));
   }
 
@@ -329,9 +314,9 @@ class HomographyEstimator : public Estimator {
     return true;
   }
 
-  // Calculates the cross-product of two vectors
-  FORCE_INLINE void crossProduct(Eigen::Vector3d& result_, const double* vector1_,
-                                 const double* vector2_, const unsigned int st_) const {
+  // Calculates the cross-product of two vectors，二维齐次点的叉积
+  static FORCE_INLINE void crossProduct(Eigen::Vector3d& result_, const double* vector1_,
+                                        const double* vector2_, const unsigned int st_) {
     const double& v1_0 = vector1_[0];
     const double& v1_st = vector1_[st_];
     const double& v2_0 = vector2_[0];
@@ -348,7 +333,7 @@ class HomographyEstimator : public Estimator {
                                  const size_t* kMinimalSample_, const double kThreshold_,
                                  bool& modelUpdated_) const override {
     // Calculate the determinant of the homography
-    const double kDeterminant = abs(model_.getData().determinant());
+    const double kDeterminant = std::abs(model_.getData().determinant());
 
     // Check if the homography has a small determinant.
     constexpr double kMinimumDeterminant = 1e-4;
@@ -364,26 +349,25 @@ class HomographyEstimator : public Estimator {
       const DataMatrix& kData_,               // All data points
       const size_t* kSample_) const override  // The indices of the selected points
   {
-    if (sampleSize() < 4) return true;
-
     // Check oriented constraints
     Eigen::Vector3d p, q;
 
     // Use references to avoid repeated dereferencing
-    const double* a = &kData_(kSample_[0], 0);
-    const double* b = &kData_(kSample_[1], 0);
-    const double* c = &kData_(kSample_[2], 0);
-    const double* d = &kData_(kSample_[3], 0);
+    const double* a = &kData_(static_cast<long>(kSample_[0]), 0);
+    const double* b = &kData_(static_cast<long>(kSample_[1]), 0);
+    const double* c = &kData_(static_cast<long>(kSample_[2]), 0);
+    const double* d = &kData_(static_cast<long>(kSample_[3]), 0);
 
-    crossProduct(p, a, b, 1);
-    crossProduct(q, a + 2, b + 2, 1);
+    crossProduct(p, a, b, 1);          // 源图中过点 a、b 的直线
+    crossProduct(q, a + 2, b + 2, 1);  // 目标图中过对应的直线
 
     // Use cached values and simplify conditions
-    const double p_c = p[0] * c[0] + p[1] * c[1] + p[2];
-    const double q_c = q[0] * c[2] + q[1] * c[3] + q[2];
+    const double p_c = p[0] * c[0] + p[1] * c[1] + p[2];  // c 到直线 p 的有符号距离(未归一化)
+    const double q_c = q[0] * c[2] + q[1] * c[3] + q[2];  // c' 到直线 q 的有符号距离
     const double p_d = p[0] * d[0] + p[1] * d[1] + p[2];
     const double q_d = q[0] * d[2] + q[1] * d[3] + q[2];
 
+    // 核心判据是:如果 c 在源图中位于直线 ab 的左侧,那么对应点 c' 必须也在目标图中位于直线 a'b' 的左侧。单应是保持定向的射影变换(行列式为正时),不会把点翻到直线另一侧
     if (p_c * q_c < 0 || p_d * q_d < 0) return false;
 
     crossProduct(p, c, d, 1);
@@ -399,4 +383,5 @@ class HomographyEstimator : public Estimator {
     return true;
   }
 };
+
 }  // namespace superansac::estimator
