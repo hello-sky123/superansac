@@ -1088,7 +1088,7 @@ std::tuple<Eigen::Matrix3d, std::vector<size_t>, double, size_t> estimateHomogra
         kPointProbabilities_,  // The probabilities of the points being inliers
     const std::vector<double>&
         kImageSizes_,  // Image sizes (height source, width source, height destination, width destination)
-    superansac::RANSACSettings& settings_)  // The RANSAC settings
+    const superansac::RANSACSettings& settings_)  // The RANSAC settings
 {
   // Check if the input matrix has the correct dimensions
   if (kCorrespondences_.cols() != 4)
