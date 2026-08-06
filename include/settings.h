@@ -70,57 +70,60 @@ struct DegensacSettings {
 };
 
 struct RANSACSettings {
+  // 迭代与收敛
   size_t topKForLocalOptimization =
-             3,              // Number of best models used for local optimization (reduced from 5)
-      minIterations = 1000,  // Minimum number of iterations
-      maxIterations = 5000,  // Maximum number of iterations
-      finalRefinementRounds =
-          0;  // Extra score-gated re-collect-and-refit rounds in the final LSQ optimization
-  double finalRefinementScheduleStart =
-             3.0,  // Widest sigma multiplier in the final-refinement schedule
-      finalRefinementScheduleEnd =
-          0.5;                   // Narrowest sigma multiplier in the final-refinement schedule
-  double inlierThreshold = 1.5;  // Inlier threshold
+      3;  // Number of best models used for local optimization (reduced from 5)
+  size_t minIterations = 1000;   // Minimum number of iterations
+  size_t maxIterations = 5000;   // Maximum number of iterations
   double confidence = 0.99;      // Confidence
-  bool localOptimizationInsideTheLoop =
-           false,      // Whether to locally optimize models when you find a new best or later
-      useSprt = true,  // Whether to use SPRT test to speed up
-      fundamentalOrientationCheck =
-          false,  // Reject minimal F models violating the oriented epipolar constraint
-      fundamentalSymmetricValidation =
-          false,  // Validate new-best F models with the symmetric epipolar distance
-      finalRefinementSchedule =
-          false,  // Use a shrinking-threshold schedule in the final refinement rounds
-      finalPolishTopK =
-          false,  // Run the final optimizer on every top-K LO candidate before selecting the best
-      finalRefinementWeighted =
-          false;  // Feed per-point confidences into the final-refinement bundle adjustment
+  double inlierThreshold = 1.5;  // Inlier threshold
+
+  // 七个策略选择器：决定各工厂实例化哪个实现
+  scoring::ScoringType scoring = scoring::ScoringType::MAGSAC;    // Scoring type
+  samplers::SamplerType sampler = samplers::SamplerType::PROSAC;  // Sampler type
+  neighborhood::NeighborhoodType neighborhood =
+      neighborhood::NeighborhoodType::Grid;  // Neighborhood type
+  local_optimization::LocalOptimizationType localOptimization =
+      local_optimization::LocalOptimizationType::NestedRANSAC;  // Local optimization type
+  local_optimization::LocalOptimizationType finalOptimization =
+      local_optimization::LocalOptimizationType::IRLS;  // Final optimization type
+  termination::TerminationType terminationCriterion =
+      termination::TerminationType::RANSAC;  // Termination criterion type
+  inlier_selector::InlierSelectorType inlierSelector =
+      inlier_selector::InlierSelectorType::None;  // Inlier selector type
+
+  // 模型专属开关
+  bool fundamentalOrientationCheck =
+      false;  // Reject minimal F models violating the oriented epipolar constraint（定向对极约束）
+  bool fundamentalSymmetricValidation =
+      false;  // Validate new-best F models with the symmetric epipolar distance（对称对极距离二次校验）
   size_t essentialCheiralityPointNumber =
-      1;  // Cheirality-vote points for E pose disambiguation (raise to ~25 for dense/RoMA matches; splg gains nothing as cv2.recoverPose redoes cheirality)
+      1;  // Cheirality-vote points for E pose disambiguation (raise to ~25 for dense/RoMA matches;
+  // splg gains nothing as cv2.recoverPose redoes cheirality)（位姿消歧的 cheirality 投票点数）
   bool homographyBundleRefinement =
       true;  // Nonlinear (LM) reprojection-error refinement of the non-minimal homography fit (H only)
   size_t homographyBundleMaxIterations =
       5;  // LM iterations: early stopping regularizes (full convergence over-fits the plane) and stays within the runtime budget
 
-  scoring::ScoringType scoring = scoring::ScoringType::MAGSAC;  // Scoring type
+  // 最终精修调度
+  size_t finalRefinementRounds =
+      0;  // Extra score-gated re-collect-and-refit rounds in the final LSQ optimization
+  bool finalRefinementSchedule =
+      false;  // Use a shrinking-threshold schedule in the final refinement rounds
+  double finalRefinementScheduleStart =
+      3.0;  // Widest sigma multiplier in the final-refinement schedule
+  double finalRefinementScheduleEnd =
+      0.5;  // Narrowest sigma multiplier in the final-refinement schedule
+  bool finalRefinementWeighted =
+      false;  // Feed per-point confidences into the final-refinement bundle adjustment
 
-  samplers::SamplerType sampler = samplers::SamplerType::PROSAC;  // Sampler type
+  // 主循环行为开关：影响流程本身，与模型类型无关
+  bool localOptimizationInsideTheLoop =
+      false;  // Locally optimize as soon as a new best model is found, not only at the end
+  bool useSprt = true;           // Use the SPRT test to abandon hopeless models early
+  bool finalPolishTopK = false;  // Run the final optimizer on every top-K candidate, then pick
 
-  neighborhood::NeighborhoodType neighborhood =
-      neighborhood::NeighborhoodType::Grid;  // Neighborhood type
-
-  local_optimization::LocalOptimizationType localOptimization =
-      local_optimization::LocalOptimizationType::NestedRANSAC;  // Local optimization type
-
-  local_optimization::LocalOptimizationType finalOptimization =
-      local_optimization::LocalOptimizationType::IRLS;  // Final optimization type
-
-  termination::TerminationType terminationCriterion =
-      termination::TerminationType::RANSAC;  // Termination criterion type
-
-  inlier_selector::InlierSelectorType inlierSelector =
-      inlier_selector::InlierSelectorType::None;  // Inlier selector type
-
+  // 五个嵌套子结构
   ARSamplerSettings arSamplerSettings;
   LocalOptimizationSettings localOptimizationSettings, finalOptimizationSettings;
   NeighborhoodSettings neighborhoodSettings;

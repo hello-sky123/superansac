@@ -11,7 +11,6 @@
 #include "estimators/solver_essential_matrix_bundle_adjustment.h"
 #include "estimators/solver_essential_matrix_five_point_nister.h"
 #include "estimators/solver_fundamental_matrix_bundle_adjustment.h"
-#include "estimators/solver_fundamental_matrix_eight_point.h"
 #include "estimators/solver_fundamental_matrix_seven_point.h"
 #include "estimators/solver_homography_four_point.h"
 #include "estimators/solver_p3p_lambda_twist.h"
