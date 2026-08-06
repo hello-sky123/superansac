@@ -227,6 +227,8 @@ PYBIND11_MODULE(pysuperansac, m) {
       .def_readwrite("final_optimization_settings",
                      &superansac::RANSACSettings::finalOptimizationSettings)
       .def_readwrite("use_sprt", &superansac::RANSACSettings::useSprt)
+      .def_readwrite("local_optimization_inside_the_loop",
+                     &superansac::RANSACSettings::localOptimizationInsideTheLoop)
       .def_readwrite("local_opt_k", &superansac::RANSACSettings::topKForLocalOptimization)
       .def_readwrite("neighborhood_settings", &superansac::RANSACSettings::neighborhoodSettings)
       .def_readwrite("degensac_settings", &superansac::RANSACSettings::degensacSettings)
