@@ -315,13 +315,14 @@ void charpoly_danilevsky_piv(Eigen::MatrixBase<Derived>& A, double* p) {
     }
     piv = A(i, i - 1);
 
-    Eigen::VectorXd v = A.row(i);
+    Eigen::VectorXd v = A.row(i);      // M^{-1} 的构造向量，左乘只会影响第 i - 1 行
     A.row(i - 1) = v.transpose() * A;  // 这相当于执行了 M^{-1} * A
 
     Eigen::VectorXd v_inv = -v;
     v_inv(i - 1) = 1.0;
     v_inv /= piv;
     v_inv(i - 1) -= 1.0;
+    // M 被分解为 I + e_{i-1} * v_inv^T，然后带入 A * M
     Eigen::VectorXd Acol = A.col(i - 1);
     for (int j = 0; j <= i; j++) A.row(j) = A.row(j) + Acol(j) * v_inv.transpose();
 
