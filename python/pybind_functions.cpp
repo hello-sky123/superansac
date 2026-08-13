@@ -27,7 +27,7 @@
 #include "utils/utils_point_correspondence.h"
 
 // Function to initialize the neighborhood graph
-template <size_t _DimensionNumber>
+template <size_t DimensionNumber>
 void initializeNeighborhood(
     const DataMatrix& kCorrespondences_,  // The point correspondences
     std::unique_ptr<superansac::neighborhood::AbstractNeighborhoodGraph>&
@@ -40,22 +40,22 @@ void initializeNeighborhood(
 {
   // Create the neighborhood graph
   neighborhoodGraph_ =
-      superansac::neighborhood::createNeighborhoodGraph<_DimensionNumber>(kNeighborhoodType_);
+      superansac::neighborhood::createNeighborhoodGraph<DimensionNumber>(kNeighborhoodType_);
   // Initialize the neighborhood graph if the neighborhood is grid
   if (kNeighborhoodType_ == superansac::neighborhood::NeighborhoodType::Grid) {
     // Check if the image sizes have the correct number of elements
-    if (kImageSizes_.size() != _DimensionNumber)
-      throw std::invalid_argument("The image sizes must have " + std::to_string(_DimensionNumber) +
+    if (kImageSizes_.size() != DimensionNumber)
+      throw std::invalid_argument("The image sizes must have " + std::to_string(DimensionNumber) +
                                   " elements.");
 
     // Cast the neighborhood graph to the grid neighborhood graph
     auto gridNeighborhoodGraph =
-        dynamic_cast<superansac::neighborhood::GridNeighborhoodGraph<_DimensionNumber>*>(
+        dynamic_cast<superansac::neighborhood::GridNeighborhoodGraph<DimensionNumber>*>(
             neighborhoodGraph_.get());
     // Initialize the neighborhood graph
     const auto& kCellNumber = kSettings_.neighborhoodSettings.neighborhoodGridDensity;
-    std::vector<double> kCellSizes(_DimensionNumber);
-    for (size_t i = 0; i < _DimensionNumber; i++) {
+    std::vector<double> kCellSizes(DimensionNumber);
+    for (size_t i = 0; i < DimensionNumber; i++) {
       kCellSizes[i] = kImageSizes_[i] / kCellNumber;
       if (kCellSizes[i] < 1.0)
         throw std::invalid_argument(
@@ -68,7 +68,7 @@ void initializeNeighborhood(
   } else if (kNeighborhoodType_ == superansac::neighborhood::NeighborhoodType::FLANN_KNN) {
     // Cast the neighborhood graph to the FLANN neighborhood graph
     auto flannNeighborhoodGraph =
-        dynamic_cast<superansac::neighborhood::FlannNeighborhoodGraph<_DimensionNumber, 0>*>(
+        dynamic_cast<superansac::neighborhood::FlannNeighborhoodGraph<DimensionNumber, 0>*>(
             neighborhoodGraph_.get());
     // Initialize the neighborhood graph
     flannNeighborhoodGraph->setNearestNeighborNumber(
@@ -77,7 +77,7 @@ void initializeNeighborhood(
   } else if (kNeighborhoodType_ == superansac::neighborhood::NeighborhoodType::FLANN_Radius) {
     // Cast the neighborhood graph to the FLANN neighborhood graph
     auto flannNeighborhoodGraph =
-        dynamic_cast<superansac::neighborhood::FlannNeighborhoodGraph<_DimensionNumber, 1>*>(
+        dynamic_cast<superansac::neighborhood::FlannNeighborhoodGraph<DimensionNumber, 1>*>(
             neighborhoodGraph_.get());
     // Initialize the neighborhood graph
     flannNeighborhoodGraph->setRadius(kSettings_.neighborhoodSettings.neighborhoodSize);
@@ -85,7 +85,7 @@ void initializeNeighborhood(
   neighborhoodGraph_->initialize(&kCorrespondences_);
 }
 
-template <size_t _DimensionNumber>
+template <size_t DimensionNumber>
 void initializeLocalOptimizer(
     const DataMatrix& kCorrespondences_,  // The point correspondences
     std::unique_ptr<superansac::local_optimization::LocalOptimizer>& localOptimizer_,
@@ -106,7 +106,7 @@ void initializeLocalOptimizer(
   if (kLocalOptimizationType_ == superansac::local_optimization::LocalOptimizationType::GCRANSAC) {
     // Initialize the neighborhood graph if needed
     if (neighborhoodGraph_ == nullptr)
-      initializeNeighborhood<_DimensionNumber>(
+      initializeNeighborhood<DimensionNumber>(
           kCorrespondences_,   // The point correspondences
           neighborhoodGraph_,  // The neighborhood graph
           kNeighborhoodType_,  // The type of the neighborhood

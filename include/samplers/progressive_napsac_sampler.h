@@ -47,7 +47,7 @@
 namespace superansac {
 namespace samplers {
 
-template <size_t _DimensionNumber>
+template <size_t DimensionNumber>
 class ProgressiveNAPSACSampler : public AbstractSampler {
  protected:
   std::unique_ptr<utils::UniformRandomGenerator<size_t>>
@@ -57,7 +57,7 @@ class ProgressiveNAPSACSampler : public AbstractSampler {
   std::vector<double> sizes;  // The sizes along each axis
   mutable const DataMatrix* kData;
 
-  std::vector<std::unique_ptr<neighborhood::GridNeighborhoodGraph<_DimensionNumber>>>
+  std::vector<std::unique_ptr<neighborhood::GridNeighborhoodGraph<DimensionNumber>>>
       gridLayers;                 // The overlapping neighborhood grids
   std::vector<size_t> layerData;  // The sizes of the grids
 
@@ -78,14 +78,14 @@ class ProgressiveNAPSACSampler : public AbstractSampler {
 
   void initializeGridLayer(size_t kLayerIdx_, const DataMatrix& kData_) {
     if (!gridLayers[kLayerIdx_]) {
-      std::vector<double> cellSizes(_DimensionNumber);
+      std::vector<double> cellSizes(DimensionNumber);
       const size_t cellNumberInGrid = layerData[kLayerIdx_];
 
-      for (size_t dimensionIdx = 0; dimensionIdx < _DimensionNumber; ++dimensionIdx)
+      for (size_t dimensionIdx = 0; dimensionIdx < DimensionNumber; ++dimensionIdx)
         cellSizes[dimensionIdx] = sizes[dimensionIdx] / cellNumberInGrid;
 
       gridLayers[kLayerIdx_] =
-          std::make_unique<neighborhood::GridNeighborhoodGraph<_DimensionNumber>>();
+          std::make_unique<neighborhood::GridNeighborhoodGraph<DimensionNumber>>();
       gridLayers[kLayerIdx_]->setCellSizes(cellSizes, cellNumberInGrid);
       gridLayers[kLayerIdx_]->initialize(&kData_);
     }

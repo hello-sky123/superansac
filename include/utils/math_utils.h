@@ -39,16 +39,16 @@ namespace superansac::utils {
 // Pivoting In-Place Gauss Elimination to solve problem A * x = b,
 // where A is the known coefficient matrix, b is the inhomogeneous part and x is the unknown vector.
 // Form: matrix_ = [A, b].
-template <size_t _Size>
-void gaussElimination(Eigen::Matrix<double, _Size, _Size + 1>&
+template <size_t Size>
+void gaussElimination(Eigen::Matrix<double, Size, Size + 1>&
                           matrix_,  // The matrix to which the elimination is applied
-                      Eigen::Matrix<double, _Size, 1>& result_)  // The solution of equation
+                      Eigen::Matrix<double, Size, 1>& result_)  // The solution of equation
 {
   // Pivotisation
-  for (size_t i = 0; i < _Size; ++i) {
+  for (size_t i = 0; i < Size; ++i) {
     // Find the row with the largest pivot element
     size_t maxRow = i;
-    for (size_t k = i + 1; k < _Size; ++k) {
+    for (size_t k = i + 1; k < Size; ++k) {
       if (std::abs(matrix_(k, i)) > std::abs(matrix_(maxRow, i))) {
         maxRow = k;
       }
@@ -61,16 +61,16 @@ void gaussElimination(Eigen::Matrix<double, _Size, _Size + 1>&
     }
 
     // Elimination process
-    for (size_t k = i + 1; k < _Size; ++k) {
+    for (size_t k = i + 1; k < Size; ++k) {
       double factor = matrix_(k, i) / matrix_(i, i);
-      matrix_.row(k).segment(i, _Size + 1 - i) -= factor * matrix_.row(i).segment(i, _Size + 1 - i);
+      matrix_.row(k).segment(i, Size + 1 - i) -= factor * matrix_.row(i).segment(i, Size + 1 - i);
     }
   }
 
   // Back-substitution
-  for (int i = _Size - 1; i >= 0; --i) {
-    result_(i) = matrix_(i, _Size);
-    for (int j = i + 1; j < _Size; ++j) {
+  for (int i = Size - 1; i >= 0; --i) {
+    result_(i) = matrix_(i, Size);
+    for (int j = i + 1; j < Size; ++j) {
       result_(i) -= matrix_(i, j) * result_(j);
     }
     result_(i) /= matrix_(i, i);

@@ -46,10 +46,10 @@
 namespace superansac {
 namespace scoring {
 
-template <size_t _DimensionNumber>
+template <size_t DimensionNumber>
 class GridScoring : public AbstractScoring {
  protected:
-  neighborhood::GridNeighborhoodGraph<_DimensionNumber>* neighborhood;
+  neighborhood::GridNeighborhoodGraph<DimensionNumber>* neighborhood;
 
  public:
   // Constructor
@@ -63,7 +63,7 @@ class GridScoring : public AbstractScoring {
 
   // Set the neighborhood structure
   FORCE_INLINE void setNeighborhood(
-      neighborhood::GridNeighborhoodGraph<_DimensionNumber>* neighborhood_) {
+      neighborhood::GridNeighborhoodGraph<DimensionNumber>* neighborhood_) {
     if (!neighborhood_->isInitialized())
       throw std::runtime_error("The neighborhood graph is not initialized.");
     neighborhood = neighborhood_;

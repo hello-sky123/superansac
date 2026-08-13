@@ -59,7 +59,7 @@ enum class SamplerType {
 };
 
 // Factory function to create samplers
-template <size_t _DimensionNumber>
+template <size_t DimensionNumber>
 FORCE_INLINE std::unique_ptr<AbstractSampler> createSampler(const SamplerType kType_) {
   switch (kType_) {
     case SamplerType::Uniform:
@@ -69,7 +69,7 @@ FORCE_INLINE std::unique_ptr<AbstractSampler> createSampler(const SamplerType kT
     case SamplerType::NAPSAC:
       return std::make_unique<NAPSACSampler>();
     case SamplerType::ProgressiveNAPSAC:
-      return std::make_unique<ProgressiveNAPSACSampler<_DimensionNumber>>();
+      return std::make_unique<ProgressiveNAPSACSampler<DimensionNumber>>();
     case SamplerType::ImportanceSampler:
       return std::make_unique<ImportanceSampler>();
     case SamplerType::ARSampler:

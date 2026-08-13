@@ -47,16 +47,16 @@ namespace neighborhood {
 enum class NeighborhoodType { Grid, BruteForce, FLANN_KNN, FLANN_Radius };
 
 // Factory function to create samplers
-template <size_t _DimensionNumber>
+template <size_t DimensionNumber>
 FORCE_INLINE std::unique_ptr<AbstractNeighborhoodGraph> createNeighborhoodGraph(
     const NeighborhoodType kType_) {
   switch (kType_) {
     case NeighborhoodType::Grid:
-      return std::make_unique<GridNeighborhoodGraph<_DimensionNumber>>();
+      return std::make_unique<GridNeighborhoodGraph<DimensionNumber>>();
     case NeighborhoodType::FLANN_KNN:
-      return std::make_unique<FlannNeighborhoodGraph<_DimensionNumber, 0>>();
+      return std::make_unique<FlannNeighborhoodGraph<DimensionNumber, 0>>();
     case NeighborhoodType::FLANN_Radius:
-      return std::make_unique<FlannNeighborhoodGraph<_DimensionNumber, 1>>();
+      return std::make_unique<FlannNeighborhoodGraph<DimensionNumber, 1>>();
     default:
       throw std::invalid_argument("Unknown Neighborhood Type");
   }

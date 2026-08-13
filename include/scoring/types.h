@@ -54,7 +54,7 @@ namespace scoring {
 enum class ScoringType { RANSAC, MSAC, MAGSAC, MINPRAN, ACRANSAC, GAU, ML, GRID };
 
 // Factory function to create samplers
-template <size_t _DimensionNumber>
+template <size_t DimensionNumber>
 FORCE_INLINE std::unique_ptr<AbstractScoring> createScoring(const ScoringType kType_,
                                                             const bool kUseSPRT_ = true) {
   switch (kType_) {
@@ -71,7 +71,7 @@ FORCE_INLINE std::unique_ptr<AbstractScoring> createScoring(const ScoringType kT
     case ScoringType::ML:
       return std::make_unique<MLScoring>();
     case ScoringType::GRID:
-      return std::make_unique<GridScoring<_DimensionNumber>>();
+      return std::make_unique<GridScoring<DimensionNumber>>();
     case ScoringType::MAGSAC:
       if (kUseSPRT_)
         return std::make_unique<MAGSACSPRTScoring>();
