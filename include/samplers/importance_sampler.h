@@ -35,6 +35,7 @@
 
 #include <iostream>
 #include <memory>
+#include <random>
 #include <vector>
 
 #include "../neighborhood/abstract_neighborhood.h"
