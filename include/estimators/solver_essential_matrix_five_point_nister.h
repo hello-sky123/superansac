@@ -48,6 +48,28 @@ namespace superansac {
 namespace estimator {
 namespace solver {
 // Estimator for the essential matrix using the five-point Nistér formulation.
+//
+// Note on reproducibility. This solver's output is sensitive to heap alignment,
+// so its score is not a reliable cross-build or cross-process regression
+// baseline. The tenth-degree polynomial solved by sturm::bisect_sturm<10>()
+// amplifies last-bit differences: a slightly shifted root selects a different
+// candidate essential matrix, which changes which candidate finally wins.
+//
+// Measured cause: allocating roughly 16 KB of heap in the host process before
+// the call -- with no superansac code involved at all -- flips the returned
+// score between two values, e.g. 0.687313 and 0.688605 on one synthetic set.
+// Building with EIGEN_DONT_VECTORIZE removes the effect entirely across the
+// same sweep, which identifies it as Eigen dispatching aligned versus
+// unaligned SIMD paths for the heap-allocated dynamic-size matrices here and
+// in sturm.h; the two paths sum in a different order, and -ffast-math with
+// -ffp-contract=fast (both on by default, see CMakeLists.txt) lets that show
+// through. Homography and fundamental-matrix estimation are unaffected: they
+// never go through the tenth-degree solve.
+//
+// This is Eigen's documented behaviour rather than a defect here, and accuracy
+// does not move -- over ten seeds against ground truth, |E - E_gt| is
+// identical in both branches. Validate changes with geometric error against a
+// known pose, not by diffing scores.
 class EssentialMatrixFivePointNisterSolver : public AbstractSolver {
  public:
   EssentialMatrixFivePointNisterSolver() {}
