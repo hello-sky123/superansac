@@ -184,10 +184,14 @@ class MAGSACScoring : public AbstractScoring {
     dofIndex_ = degreesOfFreedom - 2;  // Cache DOF index for lookup table optimization
     gammaTable_ = interleavedGammaLookupTable(dofIndex_);  // Interleaved (lower, upper) row
     k = getK(degreesOfFreedom);  //kEstimator_->getK(); // The 0.99 quantile of the distribution
-    Cn =
-        1.0 /
-        (std::pow(2, static_cast<double>(degreesOfFreedom) / 2.0) *
-         boost::math::tgamma(static_cast<double>(degreesOfFreedom) / 2.0));  // 卡方分布的归一化常数
+    // 卡方分布的归一化常数。注意：本式为 1 / (2^(n/2) * Γ(n/2))，而 getOutlierLoss() 和
+    // getSubtractTerm() 里那两张手写常数表是按 (1 / 2^(n/2)) * Γ(n/2) 推导的，二者相差
+    // Γ(n/2)² 倍。n = 2 与 n = 4 时 Γ(n/2) = 1，两式相同；n = 3、5、6 时不同（比值分别为
+    // 0.785、1.767、4.0），此时 lossOutlier 将与本式不自洽。当前全部估计器都返回 n = 2
+    // （见各 estimator 的 getDegreesOfFreedom()），故此差异不可达；若将来支持其他自由度，
+    // 必须同时重算那两张表。magsac_sprt_scoring.h 仍用旧式写法。
+    Cn = 1.0 / (std::pow(2, static_cast<double>(degreesOfFreedom) / 2.0) *
+                boost::math::tgamma(static_cast<double>(degreesOfFreedom) / 2.0));
     squaredSigmaMax = threshold * threshold;               // The squared threshold
     squaredSigmaMaxPerTwo = squaredSigmaMax / 2.0;         // The squared threshold divided by two
     squaredSigmaMaxPerFour = squaredSigmaMaxPerTwo / 2.0;  // The squared threshold divided by four
