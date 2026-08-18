@@ -46,39 +46,38 @@
 #include "magsac_look_up_table.h"
 #include "score.h"
 
-namespace superansac {
-namespace scoring {
+namespace superansac::scoring {
 
 class MAGSACScoring : public AbstractScoring {
  protected:
   static constexpr bool kUseLookUpTable = true;
   static constexpr bool kGenerateLookUpTable = false;
 
-  size_t degreesOfFreedom;
-  size_t dofIndex_;  // Cached DOF index for lookup table
-  double k;
-  double Cn;
-  double squaredSigmaMax;
-  double squaredSigmaMaxPerTwo;
-  double squaredSigmaMaxPerFour;
-  double twoTimesSquaredSigmaMax;
-  double invTwoTimesSquaredSigmaMax;  // Precomputed inverse for optimization
-  double zeroResidualLoss;
-  double nPlus1Per2;
-  double nMinus1Per2;
-  double twoNPlus1;
-  double lossOutlier;
-  double premultiplier;
-  double value0;
-  double squaredTruncatedThreshold;
-  double weightPremultiplier;
+  // 分布参数（决定数学形式）
+  size_t degreesOfFreedom{};  // 残差分布的自由度
+  size_t dofIndex_{};         // Cached DOF index for lookup table
+  double k{};                 // 该分布的 0.99 分位数
+  double Cn{};                // 归一化常数
+  // 阈值的各种预乘形式（纯性能优化）
+  double squaredSigmaMax{};             // σ_max²
+  double squaredSigmaMaxPerTwo{};       // σ_max² / 2
+  double squaredSigmaMaxPerFour{};      // σ_max² / 4
+  double twoTimesSquaredSigmaMax{};     // 2σ_max²
+  double invTwoTimesSquaredSigmaMax{};  // Precomputed inverse for optimization
+  double squaredTruncatedThreshold{};   // k²σ_max² 截断半径
+  // 指数与幂的预计算
+  double nPlus1Per2{};   // (n + 1) / 2
+  double nMinus1Per2{};  // (n - 1) / 2
+  double twoNPlus1{};    // 2 ^ ((n + 1) / 2)
+  // 损失函数常数项
+  double premultiplier{};        // 1 / σ_max * Cn * 2 ^ ((n + 1) / 2)
+  double weightPremultiplier{};  // 1 / σ_max * Cn * (n - 1) / 2
+  double value0{};               // Γ_upper((n - 1) / 2, k² / 2)，减除项
+  double zeroResidualLoss{};     // 残差为零时的损失（最优值）
+  double lossOutlier{};          // 外点的固定损失（最差值）
 
-  FORCE_INLINE void updateSPRTParameters(const Score& currentBest, int iterationIndex,
-                                         size_t totalPoints) {}
-
-  double upperIncompleteGamma(double a, double x) const {
-    // boost::math::tgamma and boost::math::tgamma_upper
-    // T(a, x) = tgamma(a) - tgamma_lower(a, x)
+  // Calculate the upper incomplete gamma function
+  static double upperIncompleteGamma(const double a, const double x) {
     return boost::math::tgamma(a) - boost::math::tgamma_lower(a, x);
   }
 
@@ -86,33 +85,39 @@ class MAGSACScoring : public AbstractScoring {
   // one cache line per lookup. Values are identical to the constexpr tables.
   const double* gammaTable_ = nullptr;
 
-  FORCE_INLINE std::pair<double, double> getGammaValues(double residual_) const {
-    size_t index = static_cast<size_t>(residual_ * lookupTableSize);
-    index = (index < lookupTableSize) ? index : (lookupTableSize - 1);
+  [[nodiscard]] FORCE_INLINE std::pair<double, double> getGammaValues(
+      const double residual_) const {
+    auto index = static_cast<size_t>(residual_ * lookupTableSize);
+    index = index < lookupTableSize ? index : lookupTableSize - 1;
     const double* kEntry = gammaTable_ + 2 * index;
     return {kEntry[0], kEntry[1]};
   }
 
-  FORCE_INLINE double getUpperGammaValue(double residual_) const {
-    size_t index = static_cast<size_t>(residual_ * lookupTableSize);
+  [[nodiscard]] FORCE_INLINE double getUpperGammaValue(double residual_) const {
+    auto index = static_cast<size_t>(residual_ * lookupTableSize);
     index = (index < lookupTableSize) ? index : (lookupTableSize - 1);
     return gammaTable_[2 * index + 1];
   }
 
-  FORCE_INLINE double getLowerGammaValue(double residual_) const {
-    size_t index = static_cast<size_t>(residual_ * lookupTableSize);
+  [[nodiscard]] FORCE_INLINE double getLowerGammaValue(double residual_) const {
+    auto index = static_cast<size_t>(residual_ * lookupTableSize);
     index = (index < lookupTableSize) ? index : (lookupTableSize - 1);
     return gammaTable_[2 * index];
   }
 
  public:
   // Constructor
-  MAGSACScoring() {}
+  MAGSACScoring() = default;
 
   // Destructor
-  ~MAGSACScoring() {}
+  ~MAGSACScoring() override = default;
 
-  static constexpr double getOutlierLoss(const size_t& kDegreesOfFreedom_) {
+  FORCE_INLINE void updateSPRTParameters(const Score& currentBest, int iterationIndex,
+                                         size_t totalPoints) override {}
+
+  // 自由度对应残差的维数，上游 MAGSAC 论文覆盖的模型： - 2： 点到点的 2D 重投影误差（单应、基础矩阵的 Sampson 距离
+  // 本质矩阵、绝对位姿、刚体变换），- 3： 3D 点到点，- 4： 两视图 4 维联合残差，- 5、6： 更高维的联合残差
+  static constexpr double getOutlierLoss(const size_t kDegreesOfFreedom_) {
     switch (kDegreesOfFreedom_) {
       case 2:
         return 0.215658;  // 0.220642416155;
@@ -129,24 +134,25 @@ class MAGSACScoring : public AbstractScoring {
     }
   }
 
-  static constexpr double getK(const size_t& kDegreesOfFreedom_) {
+  // 卡分布的 0.99 分位数
+  static constexpr double getK(const size_t kDegreesOfFreedom_) {
     switch (kDegreesOfFreedom_) {
       case 2:
-        return 3.034798181;
+        return 3.03485426;
       case 3:
-        return 3.367491648;
+        return 3.36821418;
       case 4:
-        return 3.644173432;
+        return 3.64372119;
       case 5:
-        return 3.88458492;
+        return 3.88410511;
       case 6:
-        return 4.1;
+        return 4.10023095;
       default:
         throw std::runtime_error("The degrees of freedom is not supported.");
     }
   }
 
-  static constexpr double getSubstractTerm(const size_t& kDegreesOfFreedom_) {
+  static constexpr double getSubtractTerm(const size_t kDegreesOfFreedom_) {
     switch (kDegreesOfFreedom_) {
       case 2:
         return 0.00426624;
@@ -172,125 +178,47 @@ class MAGSACScoring : public AbstractScoring {
   void initialize(const size_t kDegreesOfFreedom_) {
     if (threshold == 0.0)
       throw std::runtime_error("The threshold is not set for the MAGSAC scoring object.");
+
     degreesOfFreedom = kDegreesOfFreedom_;  // Degrees of freedom
-    dofIndex_ = degreesOfFreedom - 2;       // Cache DOF index for lookup table optimization
+    // 减 2 是因为我们只支持 2 到 6 的自由度，查找表从 0 开始索引
+    dofIndex_ = degreesOfFreedom - 2;  // Cache DOF index for lookup table optimization
     gammaTable_ = interleavedGammaLookupTable(dofIndex_);  // Interleaved (lower, upper) row
     k = getK(degreesOfFreedom);  //kEstimator_->getK(); // The 0.99 quantile of the distribution
-    //std::cout << degreesOfFreedom << std::endl;
-    Cn = 1.0 / std::pow(2, degreesOfFreedom / 2.0) *
-         boost::math::tgamma(degreesOfFreedom / 2.0);      // Normalization constant
+    Cn =
+        1.0 /
+        (std::pow(2, static_cast<double>(degreesOfFreedom) / 2.0) *
+         boost::math::tgamma(static_cast<double>(degreesOfFreedom) / 2.0));  // 卡方分布的归一化常数
     squaredSigmaMax = threshold * threshold;               // The squared threshold
     squaredSigmaMaxPerTwo = squaredSigmaMax / 2.0;         // The squared threshold divided by two
     squaredSigmaMaxPerFour = squaredSigmaMaxPerTwo / 2.0;  // The squared threshold divided by four
     twoTimesSquaredSigmaMax = 2.0 * squaredSigmaMax;       // Two times the squared threshold
     invTwoTimesSquaredSigmaMax =
-        1.0 / twoTimesSquaredSigmaMax;                 // Precomputed inverse for optimization
-    nPlus1Per2 = (degreesOfFreedom + 1) / 2.0;         // (n + 1) / 2
-    nMinus1Per2 = (degreesOfFreedom - 1) / 2.0;        // (n - 1) / 2
-    twoNPlus1 = std::pow(2.0, nPlus1Per2);             // 2 ^ ((n + 1) / 2)
-    premultiplier = 1.0 / threshold * Cn * twoNPlus1;  // The premultiplier
-    //value0 = upperIncompleteGamma(nMinus1Per2, k * k / 2.0); // The value of the upper incomplete gamma function at k * k / 2
-    //std::cout << "value0: " << value0 << std::endl;
-    value0 = getSubstractTerm(
-        degreesOfFreedom);  // The value of the upper incomplete gamma function at k * k / 2
-    //std::cout << "value0: " << value0 << std::endl;
-    //std::cout << "value0: " << value0 << std::endl;
+        1.0 / twoTimesSquaredSigmaMax;  // Precomputed inverse for optimization
+    nPlus1Per2 = (static_cast<double>(degreesOfFreedom) + 1.0) / 2.0;  // (n + 1) / 2
+    nMinus1Per2 = (static_cast<double>(degreesOfFreedom) - 1) / 2.0;   // (n - 1) / 2
+    twoNPlus1 = std::pow(2.0, nPlus1Per2);                             // 2 ^ ((n + 1) / 2)
+    premultiplier = 1.0 / threshold * Cn * twoNPlus1;                  // The premultiplier
+    // The value of the upper incomplete gamma function at k * k / 2
+    // value0 = upperIncompleteGamma(nMinus1Per2, k * k / 2.0);
+    value0 = getSubtractTerm(degreesOfFreedom);
     squaredTruncatedThreshold = k * k * squaredSigmaMax;       // The squared truncated threshold
     weightPremultiplier = 1.0 / threshold * Cn * nMinus1Per2;  // The weight premultiplier
-    //lossOutlier = threshold * Cn * nMinus1Per2 * boost::math::tgamma_lower(nPlus1Per2, k * k / 2.0); // The loss of an outlier
-    //std::cout << "Loss outlier: " << Cn * nMinus1Per2 * boost::math::tgamma_lower(nPlus1Per2, k * k / 2.0) << std::endl;
-    //std::cout << std::setprecision(12) << Cn * nMinus1Per2 * boost::math::tgamma_lower(nPlus1Per2, k * k / 2.0) << std::endl;
-    //lossOutlier = lossOutlier / premultiplier; // Normalize the loss of an outlier by the premultiplier which we will not multiply the loss with
+    // lossOutlier = threshold * Cn * nMinus1Per2 * boost::math::tgamma_lower(nPlus1Per2, k * k / 2.0);
     lossOutlier = threshold * getOutlierLoss(degreesOfFreedom);  // The loss of an outlier
-    //std::cout << "Loss outlier: " << getOutlierLoss(degreesOfFreedom) << std::endl;
 
     const auto& zeroGammaValues = getGammaValues(0.0);  // Get the gamma values
     zeroResidualLoss = squaredSigmaMaxPerTwo * zeroGammaValues.first +
                        squaredSigmaMaxPerFour * (zeroGammaValues.second - value0);
-
-    // Initialize the lookup table
-    if constexpr (kGenerateLookUpTable) {
-      std::vector<size_t> degreesOfFreedomToGenerate = {2, 3, 4, 5, 6};
-      size_t lookupTableSize = 10000;  // The size of the lookup table
-
-      // Save these values to a file
-      std::ofstream file("include/scoring/magsac_look_up_table.h");  // Open the file
-      file << "namespace superansac {\nnamespace scoring {\n";       // Write the namespace
-      file << "static constexpr size_t lookupTableSize = " << lookupTableSize
-           << ";\n";  // Write the size of the lookup table
-
-      file << "static constexpr double upperIncompleteGammaLookupTable["
-           << degreesOfFreedomToGenerate.size()
-           << "][lookupTableSize] = {";  // Write the upper incomplete gamma lookup table
-
-      for (size_t dof : degreesOfFreedomToGenerate) {
-        std::vector<double>
-            upperIncompleteGammaLookupTable;  // The lookup table for the upper incomplete gamma function
-        upperIncompleteGammaLookupTable.resize(lookupTableSize);  // Resize the lookup table
-
-        // Fill the lookup table
-        for (size_t i = 0; i < lookupTableSize; ++i) {
-          double value =
-              static_cast<double>(i) /
-              lookupTableSize;  // The value for which the incomplete gamma function is calculated
-          upperIncompleteGammaLookupTable[i] = upperIncompleteGamma(
-              (dof - 1.0) / 2.0, value);  // Calculate the upper incomplete gamma function
-        }
-
-        file << "{";  // Write the upper incomplete gamma lookup table
-        // Write the values of the upper incomplete gamma lookup table
-        for (size_t i = 0; i < lookupTableSize; ++i) {
-          // Change precision
-          file << std::setprecision(8) << upperIncompleteGammaLookupTable[i];
-          if (i < lookupTableSize - 1) file << ", ";
-        }
-        file << "}, \n";
-      }
-      file << "};\n";
-
-      // Write the values of the lower incomplete gamma lookup table
-      file << "static constexpr double lowerIncompleteGammaLookupTable["
-           << degreesOfFreedomToGenerate.size() << "][lookupTableSize] = {";
-      for (size_t dof : degreesOfFreedomToGenerate) {
-        std::vector<double>
-            lowerIncompleteGammaLookupTable;  // The lookup table for the lower incomplete gamma function
-        lowerIncompleteGammaLookupTable.resize(lookupTableSize);  // Resize the lookup table
-
-        // Fill the lookup table
-        for (size_t i = 0; i < lookupTableSize; ++i) {
-          double value =
-              static_cast<double>(i) /
-              lookupTableSize;  // The value for which the incomplete gamma function is calculated
-          lowerIncompleteGammaLookupTable[i] = boost::math::tgamma_lower(
-              (dof + 1.0) / 2.0, value);  // Calculate the lower incomplete gamma function
-        }
-
-        file << "{";  // Write the lower incomplete gamma lookup table
-        // Write the values of the lower incomplete gamma lookup table
-        for (size_t i = 0; i < lookupTableSize; ++i) {
-          file << std::setprecision(8) << lowerIncompleteGammaLookupTable[i];
-          if (i < lookupTableSize - 1) file << ", ";
-        }
-        file << "}, \n";
-      }
-      file << "}; }}\n";  // Close the namespace
-      file.close();       // Close the file
-
-      std::cout << "Lookup table saved." << std::endl;
-
-      // Exit program after generating lookup table
-      std::exit(0);
-    }
   }
 
   // Set the threshold
-  FORCE_INLINE void setThreshold(const double kThreshold_) {
+  FORCE_INLINE void setThreshold(const double kThreshold_) override {
     threshold = kThreshold_;                   // Set the threshold
     squaredThreshold = threshold * threshold;  // Set the squared threshold
   }
 
   // Loss function
-  FORCE_INLINE double getLoss(const double& kSquaredResidual_) const {
+  [[nodiscard]] FORCE_INLINE double getLoss(const double& kSquaredResidual_) const {
     double loss = 0;
     // If the residual is smaller than the threshold, store it as an inlier and
     // increase the score.
@@ -318,7 +246,7 @@ class MAGSACScoring : public AbstractScoring {
   }
 
   // Loss function
-  FORCE_INLINE double getWeight(const double& kSquaredResidual_) const {
+  [[nodiscard]] FORCE_INLINE double getWeight(const double& kSquaredResidual_) const {
     // If the residual is smaller than the threshold, store it as an inlier and
     // increase the score.
     if (kSquaredResidual_ < squaredThreshold) {
@@ -343,7 +271,7 @@ class MAGSACScoring : public AbstractScoring {
     // The squared residual
     double squaredResidual;
     // Score and inlier number
-    int inlierNumber = 0;
+    size_t inlierNumber = 0;
     double scoreValue = 0.0;
     // The score of the previous best model
     const double kBestInlierNumber = kBestScore_.getInlierNumber();
@@ -458,7 +386,7 @@ class MAGSACScoring : public AbstractScoring {
       }
     }
 
-    return Score(inlierNumber, scoreValue);
+    return {inlierNumber, scoreValue};
   }
 
   // Get weights for the points
@@ -474,8 +402,6 @@ class MAGSACScoring : public AbstractScoring {
     if (kIndices_ == nullptr) {
       // The number of points
       const int kPointNumber = kData_.rows();
-      // The squared residual
-      double squaredResidual;
       // Allocate memory for the weights
       weights_.resize(kPointNumber);
 
@@ -483,7 +409,8 @@ class MAGSACScoring : public AbstractScoring {
       // the weights buffer, then transform them in place.
       kEstimator_->squaredResiduals(kData_, kModel_, 0, kPointNumber, weights_.data());
       for (int pointIdx = 0; pointIdx < kPointNumber; ++pointIdx) {
-        squaredResidual = weights_[pointIdx];
+        // The squared residual
+        double squaredResidual = weights_[pointIdx];
 
         // If the residual is smaller than the threshold, store it as an inlier and
         // increase the score.
@@ -500,15 +427,13 @@ class MAGSACScoring : public AbstractScoring {
     } else {
       // The number of points
       const int kPointNumber = kIndices_->size();
-      // The squared residual
-      double squaredResidual;
       // Allocate memory for the weights
       weights_.resize(kPointNumber);
 
       // Iterate through all points, calculate the squaredResiduals and store the points as inliers if needed.
       for (int pointIdx = 0; pointIdx < kPointNumber; ++pointIdx) {
         // Calculate the point-to-model residual
-        squaredResidual =
+        double squaredResidual =
             kEstimator_->squaredResidual(kData_.row((*kIndices_)[pointIdx]).data(), kModel_);
 
         // If the residual is smaller than the threshold, store it as an inlier and
@@ -526,5 +451,4 @@ class MAGSACScoring : public AbstractScoring {
   }
 };
 
-}  // namespace scoring
-}  // namespace superansac
+}  // namespace superansac::scoring
