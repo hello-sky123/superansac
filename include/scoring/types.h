@@ -47,8 +47,7 @@
 #include "ransac_scoring.h"
 #include "utils/macros.h"
 
-namespace superansac {
-namespace scoring {
+namespace superansac::scoring {
 
 // Enum defining available sampler types
 enum class ScoringType { RANSAC, MSAC, MAGSAC, MINPRAN, ACRANSAC, GAU, ML, GRID };
@@ -72,15 +71,13 @@ FORCE_INLINE std::unique_ptr<AbstractScoring> createScoring(const ScoringType kT
       return std::make_unique<MLScoring>();
     case ScoringType::GRID:
       return std::make_unique<GridScoring<DimensionNumber>>();
-    case ScoringType::MAGSAC:
-      if (kUseSPRT_)
-        return std::make_unique<MAGSACSPRTScoring>();
-      else
-        return std::make_unique<MAGSACScoring>();
+    case ScoringType::MAGSAC: {
+      if (kUseSPRT_) return std::make_unique<MAGSACSPRTScoring>();
+      return std::make_unique<MAGSACScoring>();
+    }
     default:
       throw std::invalid_argument("Unknown Sampler Type");
   }
 }
 
-}  // namespace scoring
-}  // namespace superansac
+}  // namespace superansac::scoring
