@@ -152,18 +152,20 @@ class MAGSACScoring : public AbstractScoring {
     }
   }
 
+  // Γ_upper((n - 1) / 2, k² / 2)，与上面 getK() 的 k 取自同一套值。
+  // 该项使损失中的上伽马项在截断半径处归零，故必须与 k 同步重算。
   static constexpr double getSubtractTerm(const size_t kDegreesOfFreedom_) {
     switch (kDegreesOfFreedom_) {
       case 2:
-        return 0.00426624;
+        return 0.00426544;
       case 3:
-        return 0.00344787;
+        return 0.00343949;
       case 4:
-        return 0.00360571;
+        return 0.00361126;
       case 5:
-        return 0.00451815;
+        return 0.00452559;
       case 6:
-        return 0.00648;
+        return 0.00647484;
       default:
         throw std::runtime_error("The degrees of freedom is not supported.");
     }
@@ -184,12 +186,7 @@ class MAGSACScoring : public AbstractScoring {
     dofIndex_ = degreesOfFreedom - 2;  // Cache DOF index for lookup table optimization
     gammaTable_ = interleavedGammaLookupTable(dofIndex_);  // Interleaved (lower, upper) row
     k = getK(degreesOfFreedom);  //kEstimator_->getK(); // The 0.99 quantile of the distribution
-    // 卡方分布的归一化常数。注意：本式为 1 / (2^(n/2) * Γ(n/2))，而 getOutlierLoss() 和
-    // getSubtractTerm() 里那两张手写常数表是按 (1 / 2^(n/2)) * Γ(n/2) 推导的，二者相差
-    // Γ(n/2)² 倍。n = 2 与 n = 4 时 Γ(n/2) = 1，两式相同；n = 3、5、6 时不同（比值分别为
-    // 0.785、1.767、4.0），此时 lossOutlier 将与本式不自洽。当前全部估计器都返回 n = 2
-    // （见各 estimator 的 getDegreesOfFreedom()），故此差异不可达；若将来支持其他自由度，
-    // 必须同时重算那两张表。magsac_sprt_scoring.h 仍用旧式写法。
+    // 卡方分布的归一化常数
     Cn = 1.0 / (std::pow(2, static_cast<double>(degreesOfFreedom) / 2.0) *
                 boost::math::tgamma(static_cast<double>(degreesOfFreedom) / 2.0));
     squaredSigmaMax = threshold * threshold;               // The squared threshold
