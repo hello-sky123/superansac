@@ -40,6 +40,7 @@ build/*
 pysuperansac.egg-info/*
 .vscode/
 .idea/
+.claude/
 pyproject.toml
 *.egg
 *.csv
