@@ -64,7 +64,6 @@ class MAGSACScoring : public AbstractScoring {
   double squaredSigmaMaxPerFour{};      // σ_max² / 4
   double twoTimesSquaredSigmaMax{};     // 2σ_max²
   double invTwoTimesSquaredSigmaMax{};  // Precomputed inverse for optimization
-  double squaredTruncatedThreshold{};   // k²σ_max² 截断半径
   // 指数与幂的预计算
   double nPlus1Per2{};   // (n + 1) / 2
   double nMinus1Per2{};  // (n - 1) / 2
@@ -95,7 +94,7 @@ class MAGSACScoring : public AbstractScoring {
 
   [[nodiscard]] FORCE_INLINE double getUpperGammaValue(double residual_) const {
     auto index = static_cast<size_t>(residual_ * lookupTableSize);
-    index = (index < lookupTableSize) ? index : (lookupTableSize - 1);
+    index = index < lookupTableSize ? index : lookupTableSize - 1;
     return gammaTable_[2 * index + 1];
   }
 
@@ -152,8 +151,7 @@ class MAGSACScoring : public AbstractScoring {
     }
   }
 
-  // Γ_upper((n - 1) / 2, k² / 2)，与上面 getK() 的 k 取自同一套值。
-  // 该项使损失中的上伽马项在截断半径处归零，故必须与 k 同步重算。
+  // Γ_upper((n - 1) / 2, k² / 2)，与上面 getK() 的 k 取自同一套值，MAGSAC++ 里 pho(r) 里的减除项
   static constexpr double getSubtractTerm(const size_t kDegreesOfFreedom_) {
     switch (kDegreesOfFreedom_) {
       case 2:
@@ -202,7 +200,6 @@ class MAGSACScoring : public AbstractScoring {
     // The value of the upper incomplete gamma function at k * k / 2
     // value0 = upperIncompleteGamma(nMinus1Per2, k * k / 2.0);
     value0 = getSubtractTerm(degreesOfFreedom);
-    squaredTruncatedThreshold = k * k * squaredSigmaMax;       // The squared truncated threshold
     weightPremultiplier = 1.0 / threshold * Cn * nMinus1Per2;  // The weight premultiplier
     // lossOutlier = threshold * Cn * nMinus1Per2 * boost::math::tgamma_lower(nPlus1Per2, k * k / 2.0);
     lossOutlier = threshold * getOutlierLoss(degreesOfFreedom);  // The loss of an outlier
@@ -219,7 +216,7 @@ class MAGSACScoring : public AbstractScoring {
   }
 
   // Loss function
-  [[nodiscard]] FORCE_INLINE double getLoss(const double& kSquaredResidual_) const {
+  [[nodiscard]] FORCE_INLINE double getLoss(const double kSquaredResidual_) const {
     double loss = 0;
     // If the residual is smaller than the threshold, store it as an inlier and
     // increase the score.
@@ -239,7 +236,6 @@ class MAGSACScoring : public AbstractScoring {
              squaredSigmaMaxPerFour *
                  (upperIncompleteGamma(nMinus1Per2, residualPerTwoTimesSquaredSigmaMax) - value0));
 
-      // Commenting "premultiplier" as it does not affect the final result. It is just a constant.
       loss = premultiplier * loss;  // Increase the loss value
     } else
       loss = lossOutlier;
@@ -247,7 +243,7 @@ class MAGSACScoring : public AbstractScoring {
   }
 
   // Loss function
-  [[nodiscard]] FORCE_INLINE double getWeight(const double& kSquaredResidual_) const {
+  [[nodiscard]] FORCE_INLINE double getWeight(const double kSquaredResidual_) const {
     // If the residual is smaller than the threshold, store it as an inlier and
     // increase the score.
     if (kSquaredResidual_ < squaredThreshold) {
