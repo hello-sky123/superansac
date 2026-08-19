@@ -204,15 +204,28 @@ class MAGSACScoring : public AbstractScoring {
     // lossOutlier = threshold * Cn * nMinus1Per2 * boost::math::tgamma_lower(nPlus1Per2, k * k / 2.0);
     lossOutlier = threshold * getOutlierLoss(degreesOfFreedom);  // The loss of an outlier
 
-    const auto& zeroGammaValues = getGammaValues(0.0);  // Get the gamma values
-    zeroResidualLoss = squaredSigmaMaxPerTwo * zeroGammaValues.first +
-                       squaredSigmaMaxPerFour * (zeroGammaValues.second - value0);
+    // The same expression at x = 0: the largest per-point gain, used as the early-exit bound.
+    zeroResidualLoss = marginalisedInlierLoss(0.0);
   }
 
   // Set the threshold
   FORCE_INLINE void setThreshold(const double kThreshold_) override {
     threshold = kThreshold_;                   // Set the threshold
     squaredThreshold = threshold * threshold;  // Set the squared threshold
+  }
+
+  // The marginalised loss for an inlier, before premultiplier is applied.
+  // kX_ is the normalised residual r^2 / (2 sigma_max^2). Shared by getLoss() and by
+  // both scoreImpl() paths so the formula exists in exactly one place; previously it
+  // was spelled out four times in this file and any change had to be mirrored by hand.
+  [[nodiscard]] FORCE_INLINE double marginalisedInlierLoss(const double kX_) const {
+    if constexpr (kUseLookUpTable) {
+      const std::pair<double, double> kGamma = getGammaValues(kX_);
+      return squaredSigmaMaxPerTwo * kGamma.first +
+             squaredSigmaMaxPerFour * (kGamma.second - value0);
+    }
+    return squaredSigmaMaxPerTwo * boost::math::tgamma_lower(nPlus1Per2, kX_) +
+           squaredSigmaMaxPerFour * (upperIncompleteGamma(nMinus1Per2, kX_) - value0);
   }
 
   // Loss function
@@ -222,19 +235,7 @@ class MAGSACScoring : public AbstractScoring {
     // increase the score.
     if (kSquaredResidual_ < squaredThreshold) {
       // Increase the score (use precomputed inverse for optimization)
-      double residualPerTwoTimesSquaredSigmaMax = kSquaredResidual_ * invTwoTimesSquaredSigmaMax;
-      // Calculate the loss by using a look-up table or by calculating the incomplete gamma function
-      if constexpr (kUseLookUpTable) {
-        std::pair<double, double> gammaValues =
-            getGammaValues(residualPerTwoTimesSquaredSigmaMax);  // Get the gamma values
-        loss = squaredSigmaMaxPerTwo * gammaValues.first +
-               squaredSigmaMaxPerFour * (gammaValues.second - value0);
-      } else  // Calculate the loss directly by using the incomplete gamma function
-        loss =
-            (squaredSigmaMaxPerTwo *
-                 boost::math::tgamma_lower(nPlus1Per2, residualPerTwoTimesSquaredSigmaMax) +
-             squaredSigmaMaxPerFour *
-                 (upperIncompleteGamma(nMinus1Per2, residualPerTwoTimesSquaredSigmaMax) - value0));
+      loss = marginalisedInlierLoss(kSquaredResidual_ * invTwoTimesSquaredSigmaMax);
 
       loss = premultiplier * loss;  // Increase the loss value
     } else
@@ -272,13 +273,11 @@ class MAGSACScoring : public AbstractScoring {
     double scoreValue = 0.0;
     // The score of the previous best model
     const double kBestInlierNumber = kBestScore_.getInlierNumber();
-    double residualPerTwoTimesSquaredSigmaMax, loss;
-    std::pair<double, double> gammaValues;
+    double loss;
 
     if (kPotentialInlierSets_ != nullptr) {
       const double kBestScoreValue = kBestScore_.getValue();
       const double kBestPossibleGain = premultiplier * zeroResidualLoss;
-      const double kInvTwoTimesSquaredSigmaMax = 1.0 / twoTimesSquaredSigmaMax;
 
       // Process potential inlier sets
       size_t testedPoints = 0;
@@ -299,19 +298,7 @@ class MAGSACScoring : public AbstractScoring {
             // Increase the inlier number
             ++inlierNumber;
 
-            residualPerTwoTimesSquaredSigmaMax = squaredResidual * kInvTwoTimesSquaredSigmaMax;
-            // Calculate the loss by using a look-up table or by calculating the incomplete gamma function
-            if constexpr (kUseLookUpTable) {
-              gammaValues =
-                  getGammaValues(residualPerTwoTimesSquaredSigmaMax);  // Get the gamma values
-              loss = squaredSigmaMaxPerTwo * gammaValues.first +
-                     squaredSigmaMaxPerFour * (gammaValues.second - value0);
-            } else  // Calculate the loss directly by using the incomplete gamma function
-              loss = (squaredSigmaMaxPerTwo * boost::math::tgamma_lower(
-                                                  nPlus1Per2, residualPerTwoTimesSquaredSigmaMax) +
-                      squaredSigmaMaxPerFour *
-                          (upperIncompleteGamma(nMinus1Per2, residualPerTwoTimesSquaredSigmaMax) -
-                           value0));
+            loss = marginalisedInlierLoss(squaredResidual * invTwoTimesSquaredSigmaMax);
 
             // Commenting "premultiplier" as it does not affect the final result. It is just a constant.
             scoreValue += premultiplier * loss;  // Increase the loss value
@@ -356,20 +343,7 @@ class MAGSACScoring : public AbstractScoring {
             // Increase the inlier number
             ++inlierNumber;
 
-            // Increase the score (use precomputed inverse for optimization)
-            residualPerTwoTimesSquaredSigmaMax = squaredResidual * invTwoTimesSquaredSigmaMax;
-            // Calculate the loss by using a look-up table or by calculating the incomplete gamma function
-            if constexpr (kUseLookUpTable) {
-              gammaValues =
-                  getGammaValues(residualPerTwoTimesSquaredSigmaMax);  // Get the gamma values
-              loss = squaredSigmaMaxPerTwo * gammaValues.first +
-                     squaredSigmaMaxPerFour * (gammaValues.second - value0);
-            } else  // Calculate the loss directly by using the incomplete gamma function
-              loss = (squaredSigmaMaxPerTwo * boost::math::tgamma_lower(
-                                                  nPlus1Per2, residualPerTwoTimesSquaredSigmaMax) +
-                      squaredSigmaMaxPerFour *
-                          (upperIncompleteGamma(nMinus1Per2, residualPerTwoTimesSquaredSigmaMax) -
-                           value0));
+            loss = marginalisedInlierLoss(squaredResidual * invTwoTimesSquaredSigmaMax);
 
             // Commenting "premultiplier" as it does not affect the final result. It is just a constant.
             scoreValue += premultiplier * loss;  // Increase the loss value
