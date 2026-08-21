@@ -62,6 +62,7 @@ class MSACScoring : public AbstractScoring {
     squaredThreshold = threshold * threshold;
   }
 
+ protected:
   // Sample function
   FORCE_INLINE Score
   scoreImpl(const DataMatrix& kData_, const models::Model& kModel_,

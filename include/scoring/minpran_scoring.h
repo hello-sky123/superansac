@@ -94,6 +94,7 @@ class MINPRANScoring : public AbstractScoring {
     return [k, N](double t) { return pow(t, k - 1) * pow(1 - t, N - k); };
   }
 
+ protected:
   // Sample function
   FORCE_INLINE Score
   scoreImpl(const DataMatrix& kData_, const models::Model& kModel_,
