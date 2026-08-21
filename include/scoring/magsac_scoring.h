@@ -84,23 +84,25 @@ class MAGSACScoring : public AbstractScoring {
   // one cache line per lookup. Values are identical to the constexpr tables.
   const double* gammaTable_ = nullptr;
 
+  // 传入的是归一化残差
   [[nodiscard]] FORCE_INLINE std::pair<double, double> getGammaValues(
       const double residual_) const {
+    // 表在 x ∈ [0, 1) 上均匀采样 10000 点，所以乘 lookupTableSize 再截断取整就得到最近的下界格点
     auto index = static_cast<size_t>(residual_ * lookupTableSize);
     index = index < lookupTableSize ? index : lookupTableSize - 1;
     const double* kEntry = gammaTable_ + 2 * index;
     return {kEntry[0], kEntry[1]};
   }
 
-  [[nodiscard]] FORCE_INLINE double getUpperGammaValue(double residual_) const {
+  [[nodiscard]] FORCE_INLINE double getUpperGammaValue(const double residual_) const {
     auto index = static_cast<size_t>(residual_ * lookupTableSize);
     index = index < lookupTableSize ? index : lookupTableSize - 1;
     return gammaTable_[2 * index + 1];
   }
 
-  [[nodiscard]] FORCE_INLINE double getLowerGammaValue(double residual_) const {
+  [[nodiscard]] FORCE_INLINE double getLowerGammaValue(const double residual_) const {
     auto index = static_cast<size_t>(residual_ * lookupTableSize);
-    index = (index < lookupTableSize) ? index : (lookupTableSize - 1);
+    index = index < lookupTableSize ? index : lookupTableSize - 1;
     return gammaTable_[2 * index];
   }
 
@@ -256,6 +258,7 @@ class MAGSACScoring : public AbstractScoring {
     return 0.0;
   }
 
+ protected:
   // Sample function
   FORCE_INLINE Score
   scoreImpl(const DataMatrix& kData_, const models::Model& kModel_,
