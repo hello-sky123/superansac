@@ -117,8 +117,7 @@ class MAGSACScoring : public AbstractScoring {
   FORCE_INLINE void updateSPRTParameters(const Score& currentBest, int iterationIndex,
                                          size_t totalPoints) override {}
 
-  // 自由度对应残差的维数，上游 MAGSAC 论文覆盖的模型： - 2： 点到点的 2D 重投影误差（单应、基础矩阵的 Sampson 距离
-  // 本质矩阵、绝对位姿、刚体变换），- 3： 3D 点到点，- 4： 两视图 4 维联合残差，- 5、6： 更高维的联合残差
+  // 外点的损失值
   static constexpr double getOutlierLoss(const size_t kDegreesOfFreedom_) {
     switch (kDegreesOfFreedom_) {
       case 2:
@@ -177,7 +176,7 @@ class MAGSACScoring : public AbstractScoring {
     initialize(kEstimator_->getDegreesOfFreedom());
   }
 
-  // Initialize the gamma lookup table
+  // Initialize the gamma lookup table，threshold 就是论文里的 σ_max
   void initialize(const size_t kDegreesOfFreedom_) {
     if (threshold == 0.0)
       throw std::runtime_error("The threshold is not set for the MAGSAC scoring object.");
@@ -196,10 +195,10 @@ class MAGSACScoring : public AbstractScoring {
     twoTimesSquaredSigmaMax = 2.0 * squaredSigmaMax;       // Two times the squared threshold
     invTwoTimesSquaredSigmaMax =
         1.0 / twoTimesSquaredSigmaMax;  // Precomputed inverse for optimization
-    nPlus1Per2 = (static_cast<double>(degreesOfFreedom) + 1.0) / 2.0;  // (n + 1) / 2
-    nMinus1Per2 = (static_cast<double>(degreesOfFreedom) - 1) / 2.0;   // (n - 1) / 2
-    twoNPlus1 = std::pow(2.0, nPlus1Per2);                             // 2 ^ ((n + 1) / 2)
-    premultiplier = 1.0 / threshold * Cn * twoNPlus1;                  // The premultiplier
+    nPlus1Per2 = (static_cast<double>(degreesOfFreedom) + 1.0) / 2.0;   // (n + 1) / 2
+    nMinus1Per2 = (static_cast<double>(degreesOfFreedom) - 1.0) / 2.0;  // (n - 1) / 2
+    twoNPlus1 = std::pow(2.0, nPlus1Per2);                              // 2 ^ ((n + 1) / 2)
+    premultiplier = 1.0 / threshold * Cn * twoNPlus1;                   // The premultiplier
     // The value of the upper incomplete gamma function at k * k / 2
     // value0 = upperIncompleteGamma(nMinus1Per2, k * k / 2.0);
     value0 = getSubtractTerm(degreesOfFreedom);
@@ -246,7 +245,7 @@ class MAGSACScoring : public AbstractScoring {
     return loss;
   }
 
-  // Loss function
+  // Weight calculation
   [[nodiscard]] FORCE_INLINE double getWeight(const double kSquaredResidual_) const {
     // If the residual is smaller than the threshold, store it as an inlier and
     // increase the score.
