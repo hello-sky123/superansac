@@ -52,6 +52,8 @@ class MAGSACScoring : public AbstractScoring {
  protected:
   static constexpr bool kUseLookUpTable = true;
   static constexpr bool kGenerateLookUpTable = false;
+  // Guards 1/cost when a model fits every point exactly (cost 0).
+  static constexpr double kCostEpsilon = 1e-12;
 
   // 分布参数（决定数学形式）
   size_t degreesOfFreedom{};  // 残差分布的自由度
@@ -72,7 +74,6 @@ class MAGSACScoring : public AbstractScoring {
   double premultiplier{};        // 1 / σ_max * Cn * 2 ^ ((n + 1) / 2)
   double weightPremultiplier{};  // 1 / σ_max * Cn * (n - 1) / 2
   double value0{};               // Γ_upper((n - 1) / 2, k² / 2)，减除项
-  double zeroResidualLoss{};     // 残差为零时的损失（最优值）
   double lossOutlier{};          // 外点的固定损失（最差值）
 
   // Calculate the upper incomplete gamma function
@@ -121,15 +122,15 @@ class MAGSACScoring : public AbstractScoring {
   static constexpr double getOutlierLoss(const size_t kDegreesOfFreedom_) {
     switch (kDegreesOfFreedom_) {
       case 2:
-        return 0.215658;  // 0.220642416155;
+        return 0.609974735;
       case 3:
-        return 0.306123;
+        return 0.779573319;
       case 4:
-        return 0.488088;
+        return 0.920321825;
       case 5:
-        return 0.921592;
+        return 1.04299872;
       case 6:
-        return 2.03833;
+        return 1.15306832;
       default:
         throw std::runtime_error("The degrees of freedom is not supported.");
     }
@@ -205,9 +206,6 @@ class MAGSACScoring : public AbstractScoring {
     weightPremultiplier = 1.0 / threshold * Cn * nMinus1Per2;  // The weight premultiplier
     // lossOutlier = threshold * Cn * nMinus1Per2 * boost::math::tgamma_lower(nPlus1Per2, k * k / 2.0);
     lossOutlier = threshold * getOutlierLoss(degreesOfFreedom);  // The loss of an outlier
-
-    // The same expression at x = 0: the largest per-point gain, used as the early-exit bound.
-    zeroResidualLoss = marginalisedInlierLoss(0.0);
   }
 
   // Set the threshold
@@ -221,13 +219,16 @@ class MAGSACScoring : public AbstractScoring {
   // both scoreImpl() paths so the formula exists in exactly one place; previously it
   // was spelled out four times in this file and any change had to be mirrored by hand.
   [[nodiscard]] FORCE_INLINE double marginalisedInlierLoss(const double kX_) const {
+    // MAGSAC++ eq. rho(r): the second term is scaled by r^2/4, not sigma_max^2/4.
+    // kX_ = r^2 / (2 sigma_max^2), so r^2 = kX_ * twoTimesSquaredSigmaMax.
+    const double kSquaredResidual = kX_ * twoTimesSquaredSigmaMax;
     if constexpr (kUseLookUpTable) {
       const std::pair<double, double> kGamma = getGammaValues(kX_);
       return squaredSigmaMaxPerTwo * kGamma.first +
-             squaredSigmaMaxPerFour * (kGamma.second - value0);
+             kSquaredResidual * 0.25 * (kGamma.second - value0);
     }
     return squaredSigmaMaxPerTwo * boost::math::tgamma_lower(nPlus1Per2, kX_) +
-           squaredSigmaMaxPerFour * (upperIncompleteGamma(nMinus1Per2, kX_) - value0);
+           kSquaredResidual * 0.25 * (upperIncompleteGamma(nMinus1Per2, kX_) - value0);
   }
 
   // Loss function
@@ -280,7 +281,10 @@ class MAGSACScoring : public AbstractScoring {
 
     if (kPotentialInlierSets_ != nullptr) {
       const double kBestScoreValue = kBestScore_.getValue();
-      const double kBestPossibleGain = premultiplier * zeroResidualLoss;
+      // Scores are qualities (1 / cost); map back to a cost ceiling. A
+      // non-positive quality means nothing has been scored yet -> no pruning.
+      const double kBestCost =
+          kBestScoreValue > 0.0 ? 1.0 / kBestScoreValue : std::numeric_limits<double>::infinity();
 
       // Process potential inlier sets
       size_t testedPoints = 0;
@@ -308,8 +312,7 @@ class MAGSACScoring : public AbstractScoring {
           } else
             scoreValue += lossOutlier;
 
-          if (kBestPossibleGain * (kPointNumber - pointIdx) + scoreValue < kBestScoreValue)
-            return kEmptyScore;
+          if (kBestCost > 0.0 && scoreValue > kBestCost) return kEmptyScore;
         }
       }
 
@@ -317,8 +320,11 @@ class MAGSACScoring : public AbstractScoring {
       scoreValue += (kData_.rows() - testedPoints) * lossOutlier;
     } else {
       // Pre-compute values for early exit optimization
-      const double kBestPossibleGain = premultiplier * zeroResidualLoss;
       const double kBestScoreValue = kBestScore_.getValue();
+      // Scores are qualities (1 / cost); map back to a cost ceiling. A
+      // non-positive quality means nothing has been scored yet -> no pruning.
+      const double kBestCost =
+          kBestScoreValue > 0.0 ? 1.0 / kBestScoreValue : std::numeric_limits<double>::infinity();
 
       // Iterate through all points in blocks: residuals for each block are
       // computed with a single (batched) virtual call, then consumed by the
@@ -354,13 +360,12 @@ class MAGSACScoring : public AbstractScoring {
             scoreValue += lossOutlier;
 
           // Early exit AFTER processing: if remaining perfect inliers can't beat best score
-          if (kBestPossibleGain * (kPointNumber - pointIdx - 1) + scoreValue < kBestScoreValue)
-            return kEmptyScore;
+          if (kBestCost > 0.0 && scoreValue > kBestCost) return kEmptyScore;
         }
       }
     }
 
-    return {inlierNumber, scoreValue};
+    return {inlierNumber, 1.0 / (scoreValue + kCostEpsilon)};
   }
 
   // Get weights for the points

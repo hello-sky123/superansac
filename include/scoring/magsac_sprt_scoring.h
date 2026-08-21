@@ -32,6 +32,8 @@ class MAGSACSPRTScoring : public AbstractScoring {
  protected:
   // ====== MAGSAC core (with optimizations) ======
   static constexpr bool kUseLookUpTable = true;
+  // Guards 1/cost when a model fits every point exactly (cost 0).
+  static constexpr double kCostEpsilon = 1e-12;
 
   size_t degreesOfFreedom = 0;
   size_t dofIndex_ = 0;  // Cached DOF index for lookup table
@@ -42,7 +44,6 @@ class MAGSACSPRTScoring : public AbstractScoring {
   double squaredSigmaMaxPerFour = 0.0;
   double twoTimesSquaredSigmaMax = 0.0;
   double invTwoTimesSquaredSigmaMax = 0.0;  // Precomputed inverse for optimization
-  double zeroResidualLoss = 0.0;
   double nPlus1Per2 = 0.0;
   double nMinus1Per2 = 0.0;
   double twoNPlus1 = 0.0;
@@ -71,15 +72,15 @@ class MAGSACSPRTScoring : public AbstractScoring {
   static constexpr double getOutlierLoss(const size_t& dof) {
     switch (dof) {
       case 2:
-        return 0.215658;
+        return 0.609974735;
       case 3:
-        return 0.306123;
+        return 0.779573319;
       case 4:
-        return 0.488088;
+        return 0.920321825;
       case 5:
-        return 0.921592;
+        return 1.04299872;
       case 6:
-        return 2.03833;
+        return 1.15306832;
       default:
         throw std::runtime_error("Unsupported degrees of freedom.");
     }
@@ -209,7 +210,8 @@ class MAGSACSPRTScoring : public AbstractScoring {
       double loss = 0.0;
       if constexpr (kUseLookUpTable) {
         const auto g = getGammaValues(r);
-        loss = squaredSigmaMaxPerTwo * g.first + squaredSigmaMaxPerFour * (g.second - value0);
+        // MAGSAC++ rho(r): second term scaled by r^2/4, not sigma_max^2/4.
+        loss = squaredSigmaMaxPerTwo * g.first + kSquaredResidual_ * 0.25 * (g.second - value0);
       }
       return premultiplier * loss;
     }
@@ -251,10 +253,6 @@ class MAGSACSPRTScoring : public AbstractScoring {
     squaredTruncatedThreshold = k * k * squaredSigmaMax;
     weightPremultiplier = 1.0 / threshold * Cn * nMinus1Per2;
     lossOutlier = threshold * getOutlierLoss(degreesOfFreedom);
-
-    const auto zeroGammaValues = getGammaValues(0.0);
-    zeroResidualLoss = squaredSigmaMaxPerTwo * zeroGammaValues.first +
-                       squaredSigmaMaxPerFour * (zeroGammaValues.second - value0);
 
     // Reset SPRT state to ensure clean state between runs
     resetSPRT();
@@ -309,9 +307,10 @@ class MAGSACSPRTScoring : public AbstractScoring {
         return false;
       }
 
-      const int remaining = N - iPos - 1;
-      if (premultiplier * zeroResidualLoss * remaining + scoreVal < kBestScore_.getValue())
-        return false;
+      // rho >= 0 and rho(0) = 0, so scoreVal is already a lower bound on the
+      // final cost; once it passes the incumbent's cost the model cannot win.
+      const double kBestQuality = kBestScore_.getValue();
+      if (kBestQuality > 0.0 && scoreVal > 1.0 / kBestQuality) return false;
 
       return true;
     };
@@ -350,7 +349,7 @@ class MAGSACSPRTScoring : public AbstractScoring {
       scoreVal += remaining * lossOutlier;
     }
 
-    return Score(inlierCount, scoreVal);
+    return Score(inlierCount, 1.0 / (scoreVal + kCostEpsilon));
   }
 
   FORCE_INLINE void getWeightsImpl(const DataMatrix& kData_, const models::Model& kModel_,
