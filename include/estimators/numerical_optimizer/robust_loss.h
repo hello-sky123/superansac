@@ -93,6 +93,28 @@ class TruncatedLossLeZach {
 // The method from
 //  Le and Zach, Robust Fitting with Truncated Least Squares: A Bilevel Optimization Approach, 3DV 2021
 // for truncated least squares optimization with IRLS.
+//
+// Currently unreachable, and measurement says leave it that way. Every bundle
+// solver overrides loss_type to CAUCHY whenever a sample is supplied
+// (solver_fundamental_matrix_bundle_adjustment.h and its essential-matrix and
+// PnP counterparts), and the non-minimal solvers are always called with one, so
+// the LossType::MAGSACPlusPlus that pybind_functions.cpp selects for MAGSAC
+// scoring never takes effect.
+//
+// The sign is at least right now: since the scoring classes moved to the
+// published rho(r), getLoss() rises monotonically from 0 and LM minimises it.
+// Before that it returned a gain that fell with the residual, so this class
+// would have driven the refinement the wrong way had it ever run.
+//
+// Removing the CAUCHY override to switch it on was tried and is worse.
+// Essential-matrix convergence over 120 seeds falls from 54/120 to 38/120 and
+// median |E - E_gt| on converged runs from 0.0044 to 0.0073; fundamental-matrix
+// Sampson error loosens 0.3397 to 0.3441 px, buying inlier precision 0.9892 ->
+// 0.9923. The likely cause is that rho is truncated at sigma_max, not at
+// k*sigma_max where the paper makes it continuous -- the gamma table only spans
+// x in [0, 1), which a cut at k*sigma_max would overrun -- leaving a 1.9x step
+// in the cost at the threshold (0.9657 to 1.8299 at sigma_max = 3) that LM's
+// accept test has to climb over.
 class MAGSACPlusPlusLoss {
  public:
   superansac::scoring::MAGSACScoring magsac_scoring;
