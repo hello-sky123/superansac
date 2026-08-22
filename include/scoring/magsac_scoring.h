@@ -181,6 +181,16 @@ class MAGSACScoring : public AbstractScoring {
     if (threshold == 0.0)
       throw std::runtime_error("The threshold is not set for the MAGSAC scoring object.");
 
+    // The gamma tables cover degrees of freedom 2..6 only, and the accessor indexes
+    // a std::vector with unchecked operator[]. Validate before that read: it runs
+    // before getK()'s switch, so its `default: throw` is too late, and
+    // `degreesOfFreedom - 2` underflows size_t for dof < 2. ASan reports a
+    // heap-buffer-overflow read of 8 bytes at dof = 7 without this.
+    if (kDegreesOfFreedom_ < 2 || kDegreesOfFreedom_ > 6)
+      throw std::invalid_argument(
+          "MAGSAC scoring supports 2 to 6 degrees of freedom; the gamma look-up "
+          "tables hold no other rows.");
+
     degreesOfFreedom = kDegreesOfFreedom_;  // Degrees of freedom
     // 减 2 是因为我们只支持 2 到 6 的自由度，查找表从 0 开始索引
     dofIndex_ = degreesOfFreedom - 2;  // Cache DOF index for lookup table optimization
