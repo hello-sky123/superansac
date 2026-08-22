@@ -59,10 +59,32 @@ namespace scoring {
 // curve now bottoms at k=30 (0.861) instead of k=8 (0.908) -- and removes 25
 // quadrature sweeps of 1000 points and two pow() calls each per scored model.
 //
-// Accuracy is still short of MAGSAC (0.73 px at recall 0.54 against 0.30 px at
-// 0.87 on synthetic homography data, 200 inliers among 300 points at sigma 1.5),
-// but the threshold search does now discriminate rather than always collapsing
-// onto the tightest candidate.
+// Give this scoring a GENEROUS inlier_threshold. Unlike the others it estimates
+// the noise scale itself, and the threshold only bounds the candidate set it
+// searches -- residuals[] is pre-filtered to r < threshold, so a threshold near
+// the true scale truncates the very range the search needs. Its accuracy is
+// therefore governed by how much headroom the threshold leaves, measured over ten
+// seeds at sigma 1.5 with 200 inliers among 300 points (MAGSAC alongside, same
+// data), precision 1.0000 in every cell:
+//
+//   threshold   MINPRAN med / recall     MAGSAC med / recall
+//   3.0         0.7933 px / 0.57         0.3015 px / 0.87
+//   4.5         0.3708 px / 0.79         0.2627 px / 0.99
+//   6.0         0.3317 px / 0.85         0.2503 px / 1.00
+//   9.0         0.2649 px / 0.90         0.2354 px / 1.00
+//
+// The scale estimate itself is sound where it has room. Holding sigma fixed at 2.0
+// and widening the threshold, the largest residual it accepts grows 2.219 ->
+// 3.295 -> 4.854 -> 5.402 -> 5.739 for thresholds 4, 6, 9, 14, 20, i.e. 1.11 to
+// 2.87 times sigma, converging on the 0.99 quantile of the chi distribution
+// (~3.03 sigma) once the pre-filter stops binding. The search also finds a real
+// interior minimum rather than collapsing onto the tightest candidate: on one
+// dumped curve the argmin is k=126 at 8.42e-08, below its neighbours k=115
+// (1.59e-07) and k=129 (5.88e-07).
+//
+// So the remaining gap to MAGSAC is not a defect in the statistic -- it is that
+// MAGSAC marginalises over sigma and needs no such headroom, while MINPRAN is
+// asked to find sigma inside a window the caller sized for a different purpose.
 class MINPRANScoring : public AbstractScoring {
  protected:
   const size_t kStepNumber;
