@@ -59,10 +59,10 @@ namespace scoring {
 // curve now bottoms at k=30 (0.861) instead of k=8 (0.908) -- and removes 25
 // quadrature sweeps of 1000 points and two pow() calls each per scored model.
 //
-// Accuracy on this estimator is still well behind MAGSAC (0.82 px at recall 0.14
-// against 0.30 px at 0.87 on synthetic homography data, 200 inliers among 300
-// points at sigma 1.5), so the threshold search has further problems; what is
-// fixed here is the statistic and its cost, not the estimator as a whole.
+// Accuracy is still short of MAGSAC (0.73 px at recall 0.54 against 0.30 px at
+// 0.87 on synthetic homography data, 200 inliers among 300 points at sigma 1.5),
+// but the threshold search does now discriminate rather than always collapsing
+// onto the tightest candidate.
 class MINPRANScoring : public AbstractScoring {
  protected:
   const size_t kStepNumber;
@@ -158,10 +158,17 @@ class MINPRANScoring : public AbstractScoring {
       // formed with squaredThreshold.
       const size_t kInlierCount = currentMaxIdx + 1;
       const double kP = currentThreshold / squaredThreshold;
-      if (!(kP > 0.0) || kP > 1.0 || kInlierCount > static_cast<size_t>(kPointNumber)) continue;
+      if (!(kP > 0.0) || kP > 1.0 || kInlierCount > residuals.size()) continue;
+      // The population is the filtered set, not kPointNumber. residuals only
+      // holds points already inside squaredThreshold, and both kInlierCount and
+      // kP are measured against that same set, so the binomial must be too.
+      // Using the full count makes the observed tally fall below chance at every
+      // threshold -- k = 30 where 300 * p = 35.6 -- so the statistic pins near 1
+      // and never dips.
+      const size_t kPopulation = residuals.size();
       const double randomness =
           boost::math::ibeta(static_cast<double>(kInlierCount),
-                             static_cast<double>(kPointNumber - kInlierCount + 1), kP);
+                             static_cast<double>(kPopulation - kInlierCount + 1), kP);
 
       // Check if the randomness is NaN or inf
       if (std::isnan(randomness) || std::isinf(randomness)) continue;
