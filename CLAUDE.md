@@ -88,3 +88,24 @@ Return shapes differ between estimators:
   five data columns, so every column must fall inside it.
 - Grid neighborhoods reject negative coordinates and coordinates beyond the
   bounding box. Offset synthetic 3D data to be positive.
+
+## `inlier_threshold` does not mean the same thing to every scoring
+
+Two scorings reinterpret it, which makes their inlier sets look wrong when
+compared against the value you passed in. Both are deliberate; details and
+measurements are in the class comments.
+
+- **`ScoringType.Grid`** works at `1.5 * inlier_threshold`. Its score counts
+  occupied grid cells rather than points, and the margin keeps cells whose points
+  sit just outside the nominal threshold from contributing nothing. So it reports
+  more inliers than the others and a larger geometric error, and up to a fifth of
+  the inliers it returns lie beyond the threshold you asked for — 325 of 1519 past
+  3.0 at `inlier_threshold = 3.0`, and none past its own 4.5.
+- **`ScoringType.MINPRAN`** estimates the noise scale itself; the threshold only
+  bounds the candidate set it searches. Give it a generous value, or it truncates
+  the range it needs: at sigma 1.5 it goes 0.79 px / recall 0.57 at threshold 3.0,
+  to 0.33 / 0.85 at 6.0, to 0.26 / 0.90 at 9.0.
+
+When checking that reported inliers satisfy the threshold, compare against the
+scoring's own effective value, not the configured one. Measuring against the
+configured value is what made Grid look like it was leaking inliers.
