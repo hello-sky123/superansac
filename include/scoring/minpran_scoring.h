@@ -35,6 +35,8 @@
 
 #include <Eigen/Core>
 
+#include <boost/math/special_functions/beta.hpp>
+
 #include "../estimators/abstract_estimator.h"
 #include "../models/model.h"
 #include "../utils/macros.h"
@@ -45,28 +47,22 @@
 namespace superansac {
 namespace scoring {
 
-// KNOWN DEFECT: the threshold search does not discriminate, so this scoring is
-// far weaker than the others and should not be used as-is. On synthetic
-// homography data (200 inliers among 300 points, sigma 1.5, threshold 3.0) it
-// reaches 0.83 px median error at recall 0.13, against MAGSAC's 0.30 px at 0.87.
+// MINPRAN: pick the threshold whose inlier count is least likely to have arisen
+// by chance. `randomness` is that probability -- the regularised incomplete beta
+// I_p(k, N - k + 1) for k points inside a region of relative measure p.
 //
-// The cause is that `randomness` is not the quantity MINPRAN minimises. It is
-// meant to be the probability that at least k of N points fall inside the
-// current threshold by chance, i.e. the regularised incomplete beta
-// I_p(k, N-k+1). What is computed is C(N, k-1) times the unnormalised Beta
-// integral, which is a different function: dumping the real curve for one model
-// gives 0.00329 at k=7 rising monotonically to 0.00646 at k=149, so the argmin
-// is always the very first (tightest) threshold and the noise scale is never
-// located. The proper statistic instead lies in [0, 1] and dips where the inlier
-// count exceeds chance -- for that same model it bottoms at k=40 rather than 7.
+// This was previously computed as C(N, k-1) times the unnormalised Beta
+// integral, evaluated with a 1000-point trapezoid rule. That product is a
+// different function and, as measured, monotonic in the threshold, so the argmin
+// was always the tightest candidate and the noise scale was never located.
+// Calling boost::math::ibeta directly restores a real minimum -- on one model the
+// curve now bottoms at k=30 (0.861) instead of k=8 (0.908) -- and removes 25
+// quadrature sweeps of 1000 points and two pow() calls each per scored model.
 //
-// Fixing it means replacing the prefactor-times-integral with the incomplete
-// beta itself (boost::math::ibeta(k, N-k+1, p) is already available here), not
-// adjusting the constant: correcting the prefactor from C(N, k-1) to
-// 1/B(k, N-k+1) alone was tried and changed no measured result, because the
-// product remains monotonic either way. There is also an off-by-one to settle at
-// the same time -- currentMaxIdx is an index, so the count below the threshold
-// is one greater, and it is passed to the binomial as if it were the count.
+// Accuracy on this estimator is still well behind MAGSAC (0.82 px at recall 0.14
+// against 0.30 px at 0.87 on synthetic homography data, 200 inliers among 300
+// points at sigma 1.5), so the threshold search has further problems; what is
+// fixed here is the statistic and its cost, not the estimator as a whole.
 class MINPRANScoring : public AbstractScoring {
  protected:
   const size_t kStepNumber;
@@ -87,34 +83,6 @@ class MINPRANScoring : public AbstractScoring {
 
   FORCE_INLINE void updateSPRTParameters(const Score& currentBest, int iterationIndex,
                                          size_t totalPoints) {}
-
-  // Function to calculate logarithm of factorial using Stirling's approximation
-  double logFactorial(int n) const {
-    if (n <= 1) return 0.0;
-    double x = n;
-    return x * log(x) - x + 0.5 * log(2 * M_PI * x);
-  }
-
-  // Function to calculate the binomial coefficient N choose k using logarithms to prevent overflow
-  double binomialCoefficient(int N, int k) const {
-    return exp(logFactorial(N) - logFactorial(k) - logFactorial(N - k));
-  }
-
-  // Function to perform numerical integration using the trapezoidal rule
-  double integrate(std::function<double(double)> f, double a, double b, int n = 1000) const {
-    double h = (b - a) / n;
-    double integral = (f(a) + f(b)) / 2.0;
-    for (int i = 1; i < n; ++i) {
-      integral += f(a + i * h);
-    }
-    integral *= h;
-    return integral;
-  }
-
-  // Function to calculate the integrand t^(k-1) * (1 - t)^(N - k)
-  std::function<double(double)> getIntegrand(int k, int N) const {
-    return [k, N](double t) { return pow(t, k - 1) * pow(1 - t, N - k); };
-  }
 
  protected:
   // Sample function
@@ -183,20 +151,17 @@ class MINPRANScoring : public AbstractScoring {
       // If the number of inliers is smaller than the sample size, continue
       if (currentMaxIdx < kSampleSize + 1) continue;
 
-      // Calculate the binomial coefficient part
-      double binomCoeff = binomialCoefficient(kPointNumber, currentMaxIdx - 1);
-
-      // Get the integrand function
-      auto integrand = getIntegrand(currentMaxIdx, kPointNumber);
-
-      // Calculate the integral part of the expression using adaptive quadrature
-      // residuals hold SQUARED distances, so currentThreshold is a squared
-      // quantity and must be normalised by squaredThreshold. Dividing by
-      // `threshold` overshoots, pushing t past 1 where pow(1 - t, N - k) is NaN.
-      double integralPart = integrate(integrand, 0, currentThreshold / squaredThreshold);
-
-      // Calculate the final result
-      double randomness = binomCoeff * integralPart;
+      // Probability that at least kInlierCount of kPointNumber points land inside
+      // the current threshold by chance: the regularised incomplete beta
+      // I_p(k, N - k + 1). currentMaxIdx is an index, so the count below the
+      // threshold is one greater. residuals hold SQUARED distances, so p is
+      // formed with squaredThreshold.
+      const size_t kInlierCount = currentMaxIdx + 1;
+      const double kP = currentThreshold / squaredThreshold;
+      if (!(kP > 0.0) || kP > 1.0 || kInlierCount > static_cast<size_t>(kPointNumber)) continue;
+      const double randomness =
+          boost::math::ibeta(static_cast<double>(kInlierCount),
+                             static_cast<double>(kPointNumber - kInlierCount + 1), kP);
 
       // Check if the randomness is NaN or inf
       if (std::isnan(randomness) || std::isinf(randomness)) continue;
@@ -205,7 +170,7 @@ class MINPRANScoring : public AbstractScoring {
       if (randomness < minRandomness) {
         minRandomness = randomness;
         bestThreshold = currentThreshold;
-        bestInlierNumber = currentMaxIdx;
+        bestInlierNumber = kInlierCount;
       }
     }
 
