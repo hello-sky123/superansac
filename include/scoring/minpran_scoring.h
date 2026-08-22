@@ -82,7 +82,7 @@ class MINPRANScoring : public AbstractScoring {
   }
 
   FORCE_INLINE void updateSPRTParameters(const Score& currentBest, int iterationIndex,
-                                         size_t totalPoints) {}
+                                         size_t totalPoints) override {}
 
  protected:
   // Sample function

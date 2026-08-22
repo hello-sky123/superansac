@@ -59,7 +59,7 @@ class GridScoring : public AbstractScoring {
   ~GridScoring() {}
 
   FORCE_INLINE void updateSPRTParameters(const Score& currentBest, int iterationIndex,
-                                         size_t totalPoints) {}
+                                         size_t totalPoints) override {}
 
   // Set the neighborhood structure
   FORCE_INLINE void setNeighborhood(

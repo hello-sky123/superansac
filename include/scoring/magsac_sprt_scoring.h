@@ -381,7 +381,8 @@ class MAGSACSPRTScoring : public AbstractScoring {
   // ====== Optional external updater for SPRT parameters ======
   // Public: superansac.cpp calls this through a MAGSACSPRTScoring*, not through
   // the base interface, so it has to stay reachable from outside the class.
-  void updateSPRTParameters(const Score& currentBest, int iterationIndex, size_t totalPoints) {
+  void updateSPRTParameters(const Score& currentBest, int iterationIndex,
+                            size_t totalPoints) override {
     if (currentBest.getInlierNumber() > 0 && currentBest.getValue() > 0.0) {
       const double newEps = clampProb(static_cast<double>(currentBest.getInlierNumber()) /
                                           static_cast<double>(std::max<size_t>(1, totalPoints)),
