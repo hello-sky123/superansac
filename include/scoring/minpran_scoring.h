@@ -184,7 +184,9 @@ class MINPRANScoring : public AbstractScoring {
     // Store the inliers
     if (kStoreInliers_) {
       inliers_.reserve(bestInlierNumber);
-      for (size_t i = 0; i <= bestInlierNumber; ++i) inliers_.push_back(residuals[i].second);
+      // bestInlierNumber is a count, so iterate strictly below it. It was an
+      // index before the statistic was rewritten, when `<=` was the right bound.
+      for (size_t i = 0; i < bestInlierNumber; ++i) inliers_.push_back(residuals[i].second);
     }
 
     if (bestInlierNumber < kSampleSize) return kEmptyScore;
