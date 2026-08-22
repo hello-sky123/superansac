@@ -132,9 +132,18 @@ class MINPRANScoring : public AbstractScoring {
                 return a.first < b.first;
               });
 
+    // No point fell inside the threshold, so there is nothing to score.
+    // residuals.back() would be undefined behaviour here, and kMaxResidual then
+    // reaches the threshold loop as garbage: a zero step makes it run forever,
+    // and a negative or NaN one leaves the model unscored.
+    if (residuals.empty()) return kEmptyScore;
+
     // Get the maximum residual
     const double kMaxResidual = residuals.back().first;
     const double kResidualStep = kMaxResidual / kStepNumber;
+    // All surviving residuals are identical (a single distinct value), so the
+    // step is zero and `currentThreshold += kResidualStep` would never advance.
+    if (!(kResidualStep > 0.0)) return kEmptyScore;
     const size_t kSampleSize = kEstimator_->sampleSize();
     double currentThreshold = 0;
     size_t currentMaxIdx = 0;
