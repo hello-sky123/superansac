@@ -168,7 +168,10 @@ class MINPRANScoring : public AbstractScoring {
       auto integrand = getIntegrand(currentMaxIdx, kPointNumber);
 
       // Calculate the integral part of the expression using adaptive quadrature
-      double integralPart = integrate(integrand, 0, currentThreshold / threshold);
+      // residuals hold SQUARED distances, so currentThreshold is a squared
+      // quantity and must be normalised by squaredThreshold. Dividing by
+      // `threshold` overshoots, pushing t past 1 where pow(1 - t, N - k) is NaN.
+      double integralPart = integrate(integrand, 0, currentThreshold / squaredThreshold);
 
       // Calculate the final result
       double randomness = binomCoeff * integralPart;
