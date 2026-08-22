@@ -239,7 +239,10 @@ class MAGSACSPRTScoring : public AbstractScoring {
     dofIndex_ = degreesOfFreedom - 2;  // Cache DOF index for lookup table optimization
     gammaTable_ = interleavedGammaLookupTable(dofIndex_);  // Interleaved (lower, upper) row
     k = getK(degreesOfFreedom);
-    Cn = 1.0 / std::pow(2.0, degreesOfFreedom / 2.0) * boost::math::tgamma(degreesOfFreedom / 2.0);
+    // 卡方分布的归一化常数，与论文的 C(n) = (2^(n/2) Γ(n/2))^{-1} 一致。
+    // 此前写作 (1 / 2^(n/2)) * Γ(n/2)，与 MAGSACScoring 相差 Γ(n/2)² 倍。
+    Cn = 1.0 / (std::pow(2.0, static_cast<double>(degreesOfFreedom) / 2.0) *
+                boost::math::tgamma(static_cast<double>(degreesOfFreedom) / 2.0));
     squaredSigmaMax = threshold * threshold;
     squaredSigmaMaxPerTwo = squaredSigmaMax / 2.0;
     squaredSigmaMaxPerFour = squaredSigmaMaxPerTwo / 2.0;
