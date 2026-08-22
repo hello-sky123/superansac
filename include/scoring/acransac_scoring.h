@@ -93,7 +93,7 @@ class ACRANSACScoring : public AbstractScoring {
                                          size_t totalPoints) override {}
 
   // Set the threshold
-  FORCE_INLINE void setThreshold(const double kThreshold_) {
+  FORCE_INLINE void setThreshold(const double kThreshold_) override {
     threshold = kThreshold_;
     squaredThreshold = threshold * threshold;
   }
