@@ -45,6 +45,28 @@
 namespace superansac {
 namespace scoring {
 
+// KNOWN DEFECT: the threshold search does not discriminate, so this scoring is
+// far weaker than the others and should not be used as-is. On synthetic
+// homography data (200 inliers among 300 points, sigma 1.5, threshold 3.0) it
+// reaches 0.83 px median error at recall 0.13, against MAGSAC's 0.30 px at 0.87.
+//
+// The cause is that `randomness` is not the quantity MINPRAN minimises. It is
+// meant to be the probability that at least k of N points fall inside the
+// current threshold by chance, i.e. the regularised incomplete beta
+// I_p(k, N-k+1). What is computed is C(N, k-1) times the unnormalised Beta
+// integral, which is a different function: dumping the real curve for one model
+// gives 0.00329 at k=7 rising monotonically to 0.00646 at k=149, so the argmin
+// is always the very first (tightest) threshold and the noise scale is never
+// located. The proper statistic instead lies in [0, 1] and dips where the inlier
+// count exceeds chance -- for that same model it bottoms at k=40 rather than 7.
+//
+// Fixing it means replacing the prefactor-times-integral with the incomplete
+// beta itself (boost::math::ibeta(k, N-k+1, p) is already available here), not
+// adjusting the constant: correcting the prefactor from C(N, k-1) to
+// 1/B(k, N-k+1) alone was tried and changed no measured result, because the
+// product remains monotonic either way. There is also an off-by-one to settle at
+// the same time -- currentMaxIdx is an index, so the count below the threshold
+// is one greater, and it is passed to the binomial as if it were the count.
 class MINPRANScoring : public AbstractScoring {
  protected:
   const size_t kStepNumber;
