@@ -59,22 +59,28 @@ class UniformRandomSampler : public AbstractSampler {
 
   // Initializes any non-trivial variables and sets up sampler if
   // necessary. Must be called before sample is called.
+  // UniformRandomGenerator's interval is CLOSED, so the maximum must be the last
+  // valid row index, not the row count. Passing the count let it draw `rows`
+  // itself -- an out-of-bounds row -- which AddressSanitizer caught as an 8-byte
+  // heap-buffer-overflow read in HomographyEstimator::crossProduct(), reached
+  // through isValidSample(). Measured at 2642 bad draws per 800000 (~0.33%).
+  // Every other sampler already subtracts one.
   FORCE_INLINE void initialize(const DataMatrix& kData_) {
     randomGenerator = std::make_unique<utils::UniformRandomGenerator<size_t>>();
-    randomGenerator->resetGenerator(0, static_cast<size_t>(kData_.rows()));
+    randomGenerator->resetGenerator(0, static_cast<size_t>(kData_.rows()) - 1);
   }
 
   // Initializes any non-trivial variables and sets up sampler if
   // necessary. Must be called before sample is called.
   FORCE_INLINE void initialize(const size_t kPointNumber_) {
     randomGenerator = std::make_unique<utils::UniformRandomGenerator<size_t>>();
-    randomGenerator->resetGenerator(0, static_cast<size_t>(kPointNumber_));
+    randomGenerator->resetGenerator(0, static_cast<size_t>(kPointNumber_) - 1);
   }
 
   FORCE_INLINE void update(const size_t* const subset_, const size_t& sample_size_,
                            const size_t& iteration_number_, const double& inlier_ratio_) {}
 
-  void reset(const size_t& kDataSize_) { randomGenerator->resetGenerator(0, kDataSize_); }
+  void reset(const size_t& kDataSize_) { randomGenerator->resetGenerator(0, kDataSize_ - 1); }
 
   // Sample function
   FORCE_INLINE bool sample(const DataMatrix& kData_, const int kNumSamples_, size_t* samples_) {
