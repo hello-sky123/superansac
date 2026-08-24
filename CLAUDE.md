@@ -69,6 +69,43 @@ Two requirements for a meaningful number:
   that disappeared at 40 seeds.
 - Watch for saturated benchmarks. Precision 1.0000 and recall 0.999 in both arms
   means the test cannot discriminate; raise noise or the outlier ratio.
+- A change that touches the sampler cannot be byte-identical — every random draw
+  moves. Compare aggregates over **two independent seed ranges per build** and
+  treat the baseline-against-itself spread as the noise floor. That floor is wide:
+  60 seeds apart, the same binary gave MSAC 0.3494 vs 0.3035 px (13%). One range
+  showed MINPRAN 10.8% "worse" until two further ranges put it ahead.
+
+## Run AddressSanitizer periodically
+
+It found three real defects on the ordinary estimation path that no amount of
+result-diffing would have surfaced — an out-of-range sampler index, `back()` on an
+empty vector, and a `new[]`/`delete` mismatch. Each aborted the run before the
+next was reachable, so expect to fix and re-run.
+
+```bash
+PY=/home/zhangzhongping/anaconda3/envs/ransac_env/bin/python3.10
+cmake -B <dir> -S . -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer -g" \
+  -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address" \
+  -DPYTHON_EXECUTABLE=$PY -DPython_EXECUTABLE=$PY -DPython3_EXECUTABLE=$PY \
+  -Dpybind11_DIR=$($PY -c "import pybind11;print(pybind11.get_cmake_dir())")
+cmake --build <dir> --target pysuperansac -j$(nproc)
+
+LD_PRELOAD=$(gcc -print-file-name=libasan.so) \
+  ASAN_OPTIONS=detect_leaks=0 PYTHONPATH=<dir>/python $PY script.py
+```
+
+`LD_PRELOAD` is required: the sanitizer arrives through a dlopen'd extension, and
+without it ASan dies with `Sanitizer CHECK failed: ... (tsd_key_inited) != (0)`
+before running anything. The build takes ~10 minutes, so start it in the
+background.
+
+Cover all five estimators and every scoring — the first sweep only exercised
+homography, and the ACRANSAC bug sat behind two others that had to be fixed first.
+Read the region arithmetic in the report rather than guessing at the cause: "8
+bytes to the right of a 9616-byte region" pinned the sampler bug to row 300 of a
+300-row matrix, and "16 bytes to the left" is the signature of `back()` on an
+empty container.
 
 ## API conventions worth knowing
 
