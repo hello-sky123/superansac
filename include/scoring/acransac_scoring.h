@@ -203,6 +203,12 @@ class ACRANSACScoring : public AbstractScoring {
                 return a.first < b.first;
               });
 
+    // No point fell inside the threshold, so there is nothing to score.
+    // residuals.back() on an empty vector reads before the buffer -- AddressSanitizer
+    // reports a heap-buffer-overflow 16 bytes to the left of the region. Same defect
+    // as the one fixed in MINPRANScoring (edfe8c8).
+    if (residuals.empty()) return kEmptyScore;
+
     // Get the maximum residual
     const double kMaxResidual = residuals.back().first;
     const double kResidualStep = kMaxResidual / kStepNumber;
