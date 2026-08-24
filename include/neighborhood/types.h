@@ -44,6 +44,11 @@ namespace superansac {
 namespace neighborhood {
 
 // Enum defining available sampler types
+// BruteForce is declared but NOT implemented: there is no corresponding graph
+// class, so createNeighborhoodGraph() below falls through to its `default` and
+// throws "Unknown Neighborhood Type". It is kept in the enum only because it is
+// already exported to Python and removing a published value would break callers.
+// Grid, FLANN_KNN and FLANN_Radius all work.
 enum class NeighborhoodType { Grid, BruteForce, FLANN_KNN, FLANN_Radius };
 
 // Factory function to create samplers
@@ -57,6 +62,10 @@ FORCE_INLINE std::unique_ptr<AbstractNeighborhoodGraph> createNeighborhoodGraph(
       return std::make_unique<FlannNeighborhoodGraph<DimensionNumber, 0>>();
     case NeighborhoodType::FLANN_Radius:
       return std::make_unique<FlannNeighborhoodGraph<DimensionNumber, 1>>();
+    case NeighborhoodType::BruteForce:
+      throw std::invalid_argument(
+          "NeighborhoodType::BruteForce is declared but not implemented; use Grid, "
+          "FLANN_KNN or FLANN_Radius.");
     default:
       throw std::invalid_argument("Unknown Neighborhood Type");
   }
