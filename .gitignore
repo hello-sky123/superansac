@@ -46,3 +46,7 @@ pyproject.toml
 *.csv
 *.pdf
 tests/*.csv
+
+# Benchmark datasets fetched separately (HPatches and friends). Large, and some
+# arrive as their own git clones, so they must never enter this repository.
+data/
