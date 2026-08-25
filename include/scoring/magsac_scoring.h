@@ -212,7 +212,18 @@ class MAGSACScoring : public AbstractScoring {
     // The value of the upper incomplete gamma function at k * k / 2
     // value0 = upperIncompleteGamma(nMinus1Per2, k * k / 2.0);
     value0 = getSubtractTerm(degreesOfFreedom);
-    weightPremultiplier = 1.0 / threshold * Cn * nMinus1Per2;  // The weight premultiplier
+    // Paper's coefficient is 2^((n-1)/2), matching the 2^((n+1)/2) used for
+    // premultiplier above; this line had (n-1)/2, an exponent transcribed as a
+    // product. At n = 2, the only degree of freedom any estimator reports, that is
+    // 1.414214 against 0.5 -- a factor of 2.8284, the same discrepancy that was in
+    // getOutlierLoss before 2fab419.
+    //
+    // Behaviourally inert, and verified so rather than assumed: the factor scales
+    // every weight uniformly and outlier weights are 0, so IRLS's normal equations
+    // (A^T W A) x = A^T W b absorb it. Eight VGG image pairs under IteratedLSQ and
+    // LSQ -- the two optimisers that consume getWeights() -- are identical before
+    // and after, to twelve digits of H and ten of the score.
+    weightPremultiplier = 1.0 / threshold * Cn * std::pow(2.0, nMinus1Per2);
     // lossOutlier = threshold * Cn * nMinus1Per2 * boost::math::tgamma_lower(nPlus1Per2, k * k / 2.0);
     lossOutlier = threshold * getOutlierLoss(degreesOfFreedom);  // The loss of an outlier
   }

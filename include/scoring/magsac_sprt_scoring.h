@@ -265,7 +265,8 @@ class MAGSACSPRTScoring : public AbstractScoring {
     premultiplier = 1.0 / threshold * Cn * twoNPlus1;
     value0 = getSubtractTerm(degreesOfFreedom);
     squaredTruncatedThreshold = k * k * squaredSigmaMax;
-    weightPremultiplier = 1.0 / threshold * Cn * nMinus1Per2;
+    // Paper's coefficient, mirroring magsac_scoring.h; see the note there.
+    weightPremultiplier = 1.0 / threshold * Cn * std::pow(2.0, nMinus1Per2);
     lossOutlier = threshold * getOutlierLoss(degreesOfFreedom);
 
     // Reset SPRT state to ensure clean state between runs
