@@ -49,7 +49,10 @@ namespace samplers {
 class AdaptiveReorderingSampler : public AbstractSampler {
  protected:
   std::vector<std::tuple<double, size_t, size_t, double, double>> probabilities;
-  double estimatorVariance;
+  // No estimatorVariance member: the value initialize() uses arrives as its
+  // kEstimatorVariance_ parameter (from ARSamplerSettings, default 0.9765) and is
+  // consumed on the spot to build the beta parameters. A member of that name used
+  // to sit here, never written and never read.
   double randomness, randomness2, randomnessRandMax;
 
   // Jitter source for update(). The project's fixed-seed generator rather than
