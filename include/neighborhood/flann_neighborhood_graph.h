@@ -150,6 +150,19 @@ class FlannNeighborhoodGraph : public AbstractNeighborhoodGraph {
     index.reset(new my_kd_tree_t(_DimensionNumber, /* dim */
                                  cloud, {10}));    /* max leaf */
 
+    // Edge count for consumers that size a graph from it, notably
+    // GraphCutRANSACOptimizer, which passes getNeighborNumber() to Energy as
+    // edge_num_max. This was never assigned, so the value came from whatever the
+    // base class left uninitialised.
+    //
+    // Neighbours are computed lazily in getNeighbors(), so the exact edge count is
+    // not known here. For a k-NN graph every point contributes k directed edges;
+    // for the radius variant k is only an upper estimate per point, but Graph
+    // grows its arc array on demand, so an estimate is safe as long as it is not
+    // zero -- arc_num_max = 2 * edge_num_max, and reallocate_arcs() multiplies,
+    // so zero would never grow and add_edge() could never find room.
+    neighborNumber = static_cast<size_t>(kContainer_->rows()) * nearestNeighborNumber;
+
     // Set the initialized flag to true
     initialized = true;
     return true;

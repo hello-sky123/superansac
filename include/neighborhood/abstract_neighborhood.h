@@ -55,7 +55,13 @@ class AbstractNeighborhoodGraph {
   bool initialized;
 
  public:
-  AbstractNeighborhoodGraph() : initialized(false), kContainer(nullptr) {}
+  // neighborNumber must be initialised here as well as in the container-taking
+  // constructor below. It was omitted, so a graph built through the default
+  // constructor returned whatever was on the heap from getNeighborNumber() until
+  // something assigned it. GridNeighborhoodGraph happens to set it while building
+  // its cells; FlannNeighborhoodGraph never does, so the garbage reached
+  // GraphCutRANSACOptimizer as the edge count of the Energy graph.
+  AbstractNeighborhoodGraph() : neighborNumber(0), initialized(false), kContainer(nullptr) {}
 
   AbstractNeighborhoodGraph(const DataMatrix* const kContainer_)
       : neighborNumber(0), initialized(false), kContainer(kContainer_) {}
