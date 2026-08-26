@@ -220,17 +220,12 @@ class MAGSACScoring : public AbstractScoring {
   }
 
   // The marginalised loss for an inlier, before premultiplier is applied.
-  // kX_ is the normalised residual r^2 / (2 sigma_max^2). Shared by getLoss() and by
-  // both scoreImpl() paths so the formula exists in exactly one place; previously it
-  // was spelled out four times in this file and any change had to be mirrored by hand.
+  // kX_ is the normalised residual r^2 / (2 sigma_max^2)
   [[nodiscard]] FORCE_INLINE double marginalisedInlierLoss(const double kX_) const {
-    // MAGSAC++ eq. rho(r): the second term is scaled by r^2/4, not sigma_max^2/4.
-    // kX_ = r^2 / (2 sigma_max^2), so r^2 = kX_ * twoTimesSquaredSigmaMax.
     const double kSquaredResidual = kX_ * twoTimesSquaredSigmaMax;
     if constexpr (kUseLookUpTable) {
-      const std::pair<double, double> kGamma = getGammaValues(kX_);
-      return squaredSigmaMaxPerTwo * kGamma.first +
-             kSquaredResidual * 0.25 * (kGamma.second - value0);
+      const auto [fst, snd] = getGammaValues(kX_);
+      return squaredSigmaMaxPerTwo * fst + kSquaredResidual * 0.25 * (snd - value0);
     }
     return squaredSigmaMaxPerTwo * boost::math::tgamma_lower(nPlus1Per2, kX_) +
            kSquaredResidual * 0.25 * (upperIncompleteGamma(nMinus1Per2, kX_) - value0);
@@ -265,7 +260,7 @@ class MAGSACScoring : public AbstractScoring {
   }
 
  protected:
-  // Sample function
+  // 给候选模型打分
   FORCE_INLINE Score
   scoreImpl(const DataMatrix& kData_, const models::Model& kModel_,
             const estimator::Estimator* kEstimator_, std::vector<size_t>& inliers_,
@@ -274,16 +269,14 @@ class MAGSACScoring : public AbstractScoring {
     // Create a static empty Score
     static const Score kEmptyScore;
     // The number of points
-    const int kPointNumber = kData_.rows();
+    const int kPointNumber = static_cast<int>(kData_.rows());
     // The squared residual
     double squaredResidual;
     // Score and inlier number
     size_t inlierNumber = 0;
     double scoreValue = 0.0;
-    // The score of the previous best model
-    const double kBestInlierNumber = kBestScore_.getInlierNumber();
-    double loss;
 
+    double loss;
     if (kPotentialInlierSets_ != nullptr) {
       const double kBestScoreValue = kBestScore_.getValue();
       // Scores are qualities (1 / cost); map back to a cost ceiling. A
@@ -299,7 +292,8 @@ class MAGSACScoring : public AbstractScoring {
 
         for (const auto& pointIdx : *potentialInlierSet) {
           // Calculate the point-to-model residual
-          squaredResidual = kEstimator_->squaredResidual(kData_.row(pointIdx).data(), kModel_);
+          squaredResidual =
+              kEstimator_->squaredResidual(kData_.row(static_cast<long>(pointIdx)).data(), kModel_);
 
           // If the residual is smaller than the threshold, store it as an inlier and
           // increase the score.
@@ -311,13 +305,6 @@ class MAGSACScoring : public AbstractScoring {
             ++inlierNumber;
 
             loss = marginalisedInlierLoss(squaredResidual * invTwoTimesSquaredSigmaMax);
-
-            // premultiplier is NOT a free constant: it multiplies the inlier branch
-            // only, while the outlier branch below adds lossOutlier unscaled, so it
-            // sets the inlier-to-outlier weight ratio. Dropping it changes results --
-            // measured over ten seeds, median error moves and the inlier count and
-            // score both shift (1737 -> 1730 inliers, LSQ 0.377 -> 0.337 px,
-            // CrossValidation 0.350 -> 0.382 px).
             scoreValue += premultiplier * loss;  // Increase the loss value
           } else
             scoreValue += lossOutlier;
@@ -327,7 +314,7 @@ class MAGSACScoring : public AbstractScoring {
       }
 
       // Increase the score by the loss of the untested outliers
-      scoreValue += (kData_.rows() - testedPoints) * lossOutlier;
+      scoreValue += static_cast<double>(kData_.rows() - testedPoints) * lossOutlier;
     } else {
       // Pre-compute values for early exit optimization
       const double kBestScoreValue = kBestScore_.getValue();
@@ -336,12 +323,7 @@ class MAGSACScoring : public AbstractScoring {
       const double kBestCost =
           kBestScoreValue > 0.0 ? 1.0 / kBestScoreValue : std::numeric_limits<double>::infinity();
 
-      // Iterate through all points in blocks: residuals for each block are
-      // computed with a single (batched) virtual call, then consumed by the
-      // unchanged sequential logic. Identical decisions and arithmetic; on
-      // early exit at most the rest of the current block was computed in vain.
-      // Blocks grow geometrically so that models rejected early only
-      // overshoot by a small block.
+      // 按块遍历所有点
       constexpr int kMaxBlockSize = 256;
       double sqrBuffer[kMaxBlockSize];
       int blockSize = 16;
@@ -363,13 +345,6 @@ class MAGSACScoring : public AbstractScoring {
             ++inlierNumber;
 
             loss = marginalisedInlierLoss(squaredResidual * invTwoTimesSquaredSigmaMax);
-
-            // premultiplier is NOT a free constant: it multiplies the inlier branch
-            // only, while the outlier branch below adds lossOutlier unscaled, so it
-            // sets the inlier-to-outlier weight ratio. Dropping it changes results --
-            // measured over ten seeds, median error moves and the inlier count and
-            // score both shift (1737 -> 1730 inliers, LSQ 0.377 -> 0.337 px,
-            // CrossValidation 0.350 -> 0.382 px).
             scoreValue += premultiplier * loss;  // Increase the loss value
           } else
             scoreValue += lossOutlier;
@@ -395,7 +370,7 @@ class MAGSACScoring : public AbstractScoring {
 
     if (kIndices_ == nullptr) {
       // The number of points
-      const int kPointNumber = kData_.rows();
+      const int kPointNumber = static_cast<int>(kData_.rows());
       // Allocate memory for the weights
       weights_.resize(kPointNumber);
 
@@ -413,25 +388,20 @@ class MAGSACScoring : public AbstractScoring {
           upperIncompleteGamma = getUpperGammaValue(residualPerTwoTimesSquaredSigmaMax);
 
           weights_[pointIdx] = weightPremultiplier * (upperIncompleteGamma - value0);
-          // weightPremultiplier really is a free constant here: it scales every
-          // weight, and outliers get 0 either way, so IRLS's normal equations
-          // absorb it. Verified -- removing it leaves all twenty regression
-          // configurations byte-identical. (Contrast premultiplier in scoreImpl(),
-          // which scales only the inlier branch and does change results.)
         } else
           weights_[pointIdx] = 0.0;
       }
     } else {
       // The number of points
-      const int kPointNumber = kIndices_->size();
+      const int kPointNumber = static_cast<int>(kIndices_->size());
       // Allocate memory for the weights
       weights_.resize(kPointNumber);
 
       // Iterate through all points, calculate the squaredResiduals and store the points as inliers if needed.
       for (int pointIdx = 0; pointIdx < kPointNumber; ++pointIdx) {
         // Calculate the point-to-model residual
-        double squaredResidual =
-            kEstimator_->squaredResidual(kData_.row((*kIndices_)[pointIdx]).data(), kModel_);
+        double squaredResidual = kEstimator_->squaredResidual(
+            kData_.row(static_cast<long>((*kIndices_)[pointIdx])).data(), kModel_);
 
         // If the residual is smaller than the threshold, store it as an inlier and
         // increase the score.
@@ -439,11 +409,6 @@ class MAGSACScoring : public AbstractScoring {
           residualPerTwoTimesSquaredSigmaMax = squaredResidual * invTwoTimesSquaredSigmaMax;
           upperIncompleteGamma = getUpperGammaValue(residualPerTwoTimesSquaredSigmaMax);
           weights_[pointIdx] = weightPremultiplier * (upperIncompleteGamma - value0);
-          // weightPremultiplier really is a free constant here: it scales every
-          // weight, and outliers get 0 either way, so IRLS's normal equations
-          // absorb it. Verified -- removing it leaves all twenty regression
-          // configurations byte-identical. (Contrast premultiplier in scoreImpl(),
-          // which scales only the inlier branch and does change results.)
         } else
           weights_[pointIdx] = 0.0;
       }
