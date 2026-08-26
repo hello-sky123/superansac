@@ -181,11 +181,7 @@ class MAGSACScoring : public AbstractScoring {
     if (threshold == 0.0)
       throw std::runtime_error("The threshold is not set for the MAGSAC scoring object.");
 
-    // The gamma tables cover degrees of freedom 2..6 only, and the accessor indexes
-    // a std::vector with unchecked operator[]. Validate before that read: it runs
-    // before getK()'s switch, so its `default: throw` is too late, and
-    // `degreesOfFreedom - 2` underflows size_t for dof < 2. ASan reports a
-    // heap-buffer-overflow read of 8 bytes at dof = 7 without this.
+    // 检查输入的自由度是否在支持范围内
     if (kDegreesOfFreedom_ < 2 || kDegreesOfFreedom_ > 6)
       throw std::invalid_argument(
           "MAGSAC scoring supports 2 to 6 degrees of freedom; the gamma look-up "
@@ -208,23 +204,12 @@ class MAGSACScoring : public AbstractScoring {
     nPlus1Per2 = (static_cast<double>(degreesOfFreedom) + 1.0) / 2.0;   // (n + 1) / 2
     nMinus1Per2 = (static_cast<double>(degreesOfFreedom) - 1.0) / 2.0;  // (n - 1) / 2
     twoNPlus1 = std::pow(2.0, nPlus1Per2);                              // 2 ^ ((n + 1) / 2)
-    premultiplier = 1.0 / threshold * Cn * twoNPlus1;                   // The premultiplier
+    premultiplier = 1.0 / threshold * Cn * twoNPlus1;                   // 质量评分前面的系数
     // The value of the upper incomplete gamma function at k * k / 2
     // value0 = upperIncompleteGamma(nMinus1Per2, k * k / 2.0);
     value0 = getSubtractTerm(degreesOfFreedom);
-    // Paper's coefficient is 2^((n-1)/2), matching the 2^((n+1)/2) used for
-    // premultiplier above; this line had (n-1)/2, an exponent transcribed as a
-    // product. At n = 2, the only degree of freedom any estimator reports, that is
-    // 1.414214 against 0.5 -- a factor of 2.8284, the same discrepancy that was in
-    // getOutlierLoss before 2fab419.
-    //
-    // Behaviourally inert, and verified so rather than assumed: the factor scales
-    // every weight uniformly and outlier weights are 0, so IRLS's normal equations
-    // (A^T W A) x = A^T W b absorb it. Eight VGG image pairs under IteratedLSQ and
-    // LSQ -- the two optimisers that consume getWeights() -- are identical before
-    // and after, to twelve digits of H and ten of the score.
     weightPremultiplier = 1.0 / threshold * Cn * std::pow(2.0, nMinus1Per2);
-    // lossOutlier = threshold * Cn * nMinus1Per2 * boost::math::tgamma_lower(nPlus1Per2, k * k / 2.0);
+    // lossOutlier = threshold * Cn * 2 ** nMinus1Per2 * boost::math::tgamma_lower(nPlus1Per2, k * k / 2.0);
     lossOutlier = threshold * getOutlierLoss(degreesOfFreedom);  // The loss of an outlier
   }
 
