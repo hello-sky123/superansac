@@ -14,8 +14,6 @@
 #include <boost/math/special_functions/gamma.hpp>
 #include <chrono>
 #include <cmath>
-#include <numeric>
-#include <random>
 #include <stdexcept>
 
 #include "../estimators/abstract_estimator.h"
@@ -26,8 +24,7 @@
 #include "magsac_look_up_table.h"
 #include "score.h"
 
-namespace superansac {
-namespace scoring {
+namespace superansac::scoring {
 
 class MAGSACSPRTScoring : public AbstractScoring {
  protected:
@@ -58,14 +55,16 @@ class MAGSACSPRTScoring : public AbstractScoring {
   // one cache line per lookup. Values are identical to the constexpr tables.
   const double* gammaTable_ = nullptr;
 
-  FORCE_INLINE std::pair<double, double> getGammaValues(double residual_) const {
-    size_t idx = static_cast<size_t>(residual_ * lookupTableSize);
+  [[nodiscard]] FORCE_INLINE std::pair<double, double> getGammaValues(
+      const double residual_) const {
+    auto idx = static_cast<size_t>(residual_ * lookupTableSize);
     if (idx >= lookupTableSize) idx = lookupTableSize - 1;
     const double* kEntry = gammaTable_ + 2 * idx;
     return {kEntry[0], kEntry[1]};
   }
-  FORCE_INLINE double getUpperGammaValue(double residual_) const {
-    size_t idx = static_cast<size_t>(residual_ * lookupTableSize);
+
+  [[nodiscard]] FORCE_INLINE double getUpperGammaValue(const double residual_) const {
+    auto idx = static_cast<size_t>(residual_ * lookupTableSize);
     if (idx >= lookupTableSize) idx = lookupTableSize - 1;
     return gammaTable_[2 * idx + 1];
   }
@@ -86,47 +85,49 @@ class MAGSACSPRTScoring : public AbstractScoring {
         throw std::runtime_error("Unsupported degrees of freedom.");
     }
   }
+
   static constexpr double getK(const size_t& dof) {
     switch (dof) {
       case 2:
-        return 3.034798181;
+        return 3.03485426;
       case 3:
-        return 3.367491648;
+        return 3.36821418;
       case 4:
-        return 3.644173432;
+        return 3.64372119;
       case 5:
-        return 3.88458492;
+        return 3.88410511;
       case 6:
-        return 4.1;
+        return 4.10023095;
       default:
         throw std::runtime_error("Unsupported degrees of freedom.");
     }
   }
+
   static constexpr double getSubtractTerm(const size_t& dof) {
     switch (dof) {
       case 2:
-        return 0.00426624;
+        return 0.00426544;
       case 3:
-        return 0.00344787;
+        return 0.00343949;
       case 4:
-        return 0.00360571;
+        return 0.00361126;
       case 5:
-        return 0.00451815;
+        return 0.00452559;
       case 6:
-        return 0.00648;
+        return 0.00647484;
       default:
         throw std::runtime_error("Unsupported degrees of freedom.");
     }
   }
 
-  // ====== SPRT state ======
+  // ====== SPRT state ====== 在打分过程中提前否决明显不好的模型
   struct SPRTHistory {
-    double epsilon;  // P(inlier | good)
-    double delta;    // P(inlier | bad)
-    double A;        // LR threshold
+    double epsilon = 0.05;  // P(inlier | good)
+    double delta = 0.005;   // P(inlier | bad)
+    double A = 1.0;         // LR threshold
   };
 
-  // Tunables (balanced for performance and accuracy)
+  // Tunable (balanced for performance and accuracy)
   static constexpr bool kUseRuntimeA = false;  // set true to use K-based threshold
   static constexpr double kDefaultAlpha =
       0.02;  // Balanced false positive rate (was 0.05, tried 0.01)
@@ -141,7 +142,7 @@ class MAGSACSPRTScoring : public AbstractScoring {
   double tM_ms = 0.05;
   double mS = 1.0;
 
-  SPRTHistory sprt_{0.05, 0.005, 0.0};
+  SPRTHistory sprt_{.epsilon = 0.05, .delta = 0.005, .A = 0.0};
   size_t lastUpdateIteration_ = 0;
 
   // Rejection statistics for delta update
@@ -155,21 +156,21 @@ class MAGSACSPRTScoring : public AbstractScoring {
     lastUpdateIteration_ = 0;
   }
 
-  static inline double clampProb(double x, double lo, double hi) {
+  static double clampProb(const double x, const double lo, const double hi) {
     return std::max(lo, std::min(hi, x));
   }
 
-  static inline double waldA(double alpha = kDefaultAlpha, double beta = kDefaultBeta) {
+  static double waldA(const double alpha = kDefaultAlpha, const double beta = kDefaultBeta) {
     return (1.0 - beta) / alpha;
   }
 
-  static inline double informationC(double eps, double del) {
+  static double informationC(const double eps, const double del) {
     return (1.0 - del) * std::log((1.0 - del) / (1.0 - eps)) + del * std::log(del / eps);
   }
-  double estimateThresholdA_runtime(double eps, double del) const {
+  [[nodiscard]] double estimateThresholdA_runtime(const double eps, const double del) const {
     const double C = informationC(eps, del);
     if (C <= 0.0) return waldA();
-    const double K = (tM_ms * C) / std::max(1.0, mS) + 1.0;
+    const double K = tM_ms * C / std::max(1.0, mS) + 1.0;
     double A_prev = K, A = K;
     for (int i = 0; i < 10; ++i) {
       A = K + std::log(std::max(1e-12, A_prev));
@@ -181,8 +182,8 @@ class MAGSACSPRTScoring : public AbstractScoring {
 
   template <typename EstimatorT>
   void microBenchmarkResiduals(const DataMatrix& X, const EstimatorT* E, size_t trials = 256) {
-    if (!kUseRuntimeA) return;
-    const size_t n = static_cast<size_t>(X.rows());
+    if constexpr (!kUseRuntimeA) return;
+    const auto n = static_cast<size_t>(X.rows());
     if (n == 0) return;
     trials = std::min(trials, n);
     auto t0 = std::chrono::high_resolution_clock::now();
@@ -198,27 +199,24 @@ class MAGSACSPRTScoring : public AbstractScoring {
   }
 
   void refreshA() {
-    if (kUseRuntimeA)
-      sprt_.A = estimateThresholdA_runtime(sprt_.epsilon, sprt_.delta);
-    else
-      sprt_.A = waldA();
+    if (kUseRuntimeA) sprt_.A = estimateThresholdA_runtime(sprt_.epsilon, sprt_.delta);
+    sprt_.A = waldA();
   }
 
   // MAGSAC loss and weight
-  FORCE_INLINE double magsacLoss(const double& kSquaredResidual_) const {
+  [[nodiscard]] FORCE_INLINE double magsacLoss(const double& kSquaredResidual_) const {
     if (kSquaredResidual_ < squaredThreshold) {
       const double r = kSquaredResidual_ * invTwoTimesSquaredSigmaMax;
       double loss = 0.0;
       if constexpr (kUseLookUpTable) {
         const auto g = getGammaValues(r);
-        // MAGSAC++ rho(r): second term scaled by r^2/4, not sigma_max^2/4.
         loss = squaredSigmaMaxPerTwo * g.first + kSquaredResidual_ * 0.25 * (g.second - value0);
       }
       return premultiplier * loss;
     }
     return lossOutlier;
   }
-  FORCE_INLINE double magsacWeight(const double& kSquaredResidual_) const {
+  [[nodiscard]] FORCE_INLINE double magsacWeight(const double kSquaredResidual_) const {
     if (kSquaredResidual_ >= squaredThreshold) return 0.0;
     const double r = kSquaredResidual_ * invTwoTimesSquaredSigmaMax;
     return weightPremultiplier * (getUpperGammaValue(r) - value0);
@@ -226,7 +224,8 @@ class MAGSACSPRTScoring : public AbstractScoring {
 
  public:
   MAGSACSPRTScoring() { refreshA(); }
-  ~MAGSACSPRTScoring() {}
+
+  ~MAGSACSPRTScoring() override = default;
 
   // ====== Initialization (no 'override' here) ======
   void initialize(const estimator::Estimator* kEstimator_) {
@@ -236,11 +235,6 @@ class MAGSACSPRTScoring : public AbstractScoring {
 
   // Match MAGSACScoring’s overload
   void initialize(const size_t kDegreesOfFreedom_) {
-    // The gamma tables cover degrees of freedom 2..6 only, and the accessor indexes
-    // a std::vector with unchecked operator[]. Validate before that read: it runs
-    // before getK()'s switch, so its `default: throw` is too late, and
-    // `degreesOfFreedom - 2` underflows size_t for dof < 2. ASan reports a
-    // heap-buffer-overflow read of 8 bytes at dof = 7 without this.
     if (kDegreesOfFreedom_ < 2 || kDegreesOfFreedom_ > 6)
       throw std::invalid_argument(
           "MAGSAC scoring supports 2 to 6 degrees of freedom; the gamma look-up "
@@ -250,8 +244,6 @@ class MAGSACSPRTScoring : public AbstractScoring {
     dofIndex_ = degreesOfFreedom - 2;  // Cache DOF index for lookup table optimization
     gammaTable_ = interleavedGammaLookupTable(dofIndex_);  // Interleaved (lower, upper) row
     k = getK(degreesOfFreedom);
-    // 卡方分布的归一化常数，与论文的 C(n) = (2^(n/2) Γ(n/2))^{-1} 一致。
-    // 此前写作 (1 / 2^(n/2)) * Γ(n/2)，与 MAGSACScoring 相差 Γ(n/2)² 倍。
     Cn = 1.0 / (std::pow(2.0, static_cast<double>(degreesOfFreedom) / 2.0) *
                 boost::math::tgamma(static_cast<double>(degreesOfFreedom) / 2.0));
     squaredSigmaMax = threshold * threshold;
@@ -259,13 +251,12 @@ class MAGSACSPRTScoring : public AbstractScoring {
     squaredSigmaMaxPerFour = squaredSigmaMaxPerTwo / 2.0;
     twoTimesSquaredSigmaMax = 2.0 * squaredSigmaMax;
     invTwoTimesSquaredSigmaMax = 1.0 / twoTimesSquaredSigmaMax;  // Precomputed inverse
-    nPlus1Per2 = (degreesOfFreedom + 1) / 2.0;
-    nMinus1Per2 = (degreesOfFreedom - 1) / 2.0;
+    nPlus1Per2 = static_cast<double>(degreesOfFreedom + 1) / 2.0;
+    nMinus1Per2 = static_cast<double>(degreesOfFreedom - 1) / 2.0;
     twoNPlus1 = std::pow(2.0, nPlus1Per2);
     premultiplier = 1.0 / threshold * Cn * twoNPlus1;
     value0 = getSubtractTerm(degreesOfFreedom);
     squaredTruncatedThreshold = k * k * squaredSigmaMax;
-    // Paper's coefficient, mirroring magsac_scoring.h; see the note there.
     weightPremultiplier = 1.0 / threshold * Cn * std::pow(2.0, nMinus1Per2);
     lossOutlier = threshold * getOutlierLoss(degreesOfFreedom);
 
@@ -287,8 +278,8 @@ class MAGSACSPRTScoring : public AbstractScoring {
             std::vector<const std::vector<size_t>*>* kPotentialInlierSets_) const override {
     static const Score kEmptyScore;
 
-    const int N = kData_.rows();
-    if (N == 0) return Score();
+    const int N = static_cast<int>(kData_.rows());
+    if (N == 0) return {};
 
     // Note: Removed permutation - sequential order is sufficient for SPRT
     if constexpr (kUseRuntimeA) {
@@ -301,17 +292,17 @@ class MAGSACSPRTScoring : public AbstractScoring {
     const double A = std::max(1.0, sprt_.A);
 
     double lambdaLR = 1.0;
-    int inlierCount = 0;
+    size_t inlierCount = 0;
     double scoreVal = 0.0;
 
-    auto accumulate_point = [&](int iPos, size_t trueIdx, const double sqr) -> bool {
+    auto accumulate_point = [&](const int iPos, const size_t trueIdx, const double sqr) -> bool {
       if (sqr < squaredThreshold) {
-        lambdaLR *= (del / eps);
+        lambdaLR *= del / eps;
         if (kStoreInliers_) inliers_.push_back(trueIdx);
         ++inlierCount;
         scoreVal += magsacLoss(sqr);
       } else {
-        lambdaLR *= ((1.0 - del) / (1.0 - eps));
+        lambdaLR *= (1.0 - del) / (1.0 - eps);
         scoreVal += lossOutlier;
       }
 
@@ -332,12 +323,6 @@ class MAGSACSPRTScoring : public AbstractScoring {
     };
 
     if (kPotentialInlierSets_ == nullptr) {
-      // Sequential iteration in blocks: residuals for each block are computed
-      // with a single (batched) virtual call, then consumed by the unchanged
-      // sequential SPRT logic. Identical decisions and arithmetic; on early
-      // exit at most the rest of the current block was computed in vain.
-      // Blocks grow geometrically so that models rejected by the SPRT after a
-      // few points only overshoot by a small block.
       constexpr int kMaxBlockSize = 256;
       double sqrBuffer[kMaxBlockSize];
       int blockSize = 16;
@@ -365,7 +350,7 @@ class MAGSACSPRTScoring : public AbstractScoring {
       scoreVal += remaining * lossOutlier;
     }
 
-    return Score(inlierCount, 1.0 / (scoreVal + kCostEpsilon));
+    return {inlierCount, 1.0 / (scoreVal + kCostEpsilon)};
   }
 
   FORCE_INLINE void getWeightsImpl(const DataMatrix& kData_, const models::Model& kModel_,
@@ -373,7 +358,7 @@ class MAGSACSPRTScoring : public AbstractScoring {
                                    std::vector<double>& weights_,
                                    const std::vector<size_t>* kIndices_) const override {
     if (kIndices_ == nullptr) {
-      const int N = kData_.rows();
+      const int N = static_cast<int>(kData_.rows());
       weights_.resize(N);
       // One batched call for all residuals, then transform in place.
       kEstimator_->squaredResiduals(kData_, kModel_, 0, N, weights_.data());
@@ -390,11 +375,8 @@ class MAGSACSPRTScoring : public AbstractScoring {
   }
 
  public:
-  // ====== Optional external updater for SPRT parameters ======
-  // Public: superansac.cpp calls this through a MAGSACSPRTScoring*, not through
-  // the base interface, so it has to stay reachable from outside the class.
-  void updateSPRTParameters(const Score& currentBest, int iterationIndex,
-                            size_t totalPoints) override {
+  void updateSPRTParameters(const Score& currentBest, const int iterationIndex,
+                            const size_t totalPoints) override {
     if (currentBest.getInlierNumber() > 0 && currentBest.getValue() > 0.0) {
       const double newEps = clampProb(static_cast<double>(currentBest.getInlierNumber()) /
                                           static_cast<double>(std::max<size_t>(1, totalPoints)),
@@ -431,5 +413,4 @@ class MAGSACSPRTScoring : public AbstractScoring {
   }
 };
 
-}  // namespace scoring
-}  // namespace superansac
+}  // namespace superansac::scoring
